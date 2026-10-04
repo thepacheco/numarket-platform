@@ -1,5 +1,5 @@
 import { withProvisioner, type Db } from "./client";
-import { buildReviews, CHECKS, DASHBOARDS, DEFINITIONS, DEMO_OTHER_MEMBERS, DEMO_PERSONAS, FLAGS, REPORTS, SCREENS, SOURCES } from "./demo/config";
+import { buildReviews, CATALOG_TABLES, CHECKS, DASHBOARDS, DATA_REPORTS, DEFINITIONS, DEMO_OTHER_MEMBERS, DEMO_PERSONAS, FLAGS, REPORTS, SCREENS, SOURCES } from "./demo/config";
 import { latestSnapshot } from "./repo/snapshots";
 import { publishSimulated } from "./repo/snapshots";
 
@@ -107,6 +107,18 @@ async function seedContent(db: Db, tenantId: string) {
   await db.query("delete from dashboards where not (slug = any($1))", [DASHBOARDS.map((d) => d.slug)]);
   await db.query("delete from reports where not (slug = any($1))", [REPORTS.map((r) => r.slug)]);
   await db.query("delete from input_screens where not (slug = any($1))", [SCREENS.map((x) => x.slug)]);
+  await db.query("delete from data_reports where not (slug = any($1))", [DATA_REPORTS.map((x) => x.slug)]);
+  for (const [n, r] of DATA_REPORTS.entries()) {
+    await db.query(
+      `insert into data_reports (tenant_id, slug, title, description, category, definition, sort) values ($1, $2, $3, $4, $5, $6, $7)
+       on conflict (tenant_id, slug) do update set title = excluded.title, description = excluded.description, category = excluded.category, definition = excluded.definition, sort = excluded.sort`,
+      [tenantId, r.slug, r.title, r.description, r.category, JSON.stringify(r.definition), n],
+    );
+  }
+  await db.query("delete from catalog_tables");
+  for (const [n, t] of CATALOG_TABLES.entries()) {
+    await db.query("insert into catalog_tables (tenant_id, dataset, name, title, description, grain, sources, sort) values ($1, $2, $3, $4, $5, $6, $7, $8)", [tenantId, t.dataset, t.name, t.title, t.description, t.grain, t.sources, n]);
+  }
   let i = 0;
   for (const d of DASHBOARDS) {
     await db.query(

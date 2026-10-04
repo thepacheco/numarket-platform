@@ -29,6 +29,19 @@ const paths: Record<string, string> = {
   grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
   calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   pdf: "M6 3h9l4 4v14H6zM14 3v5h5M9 13h6M9 17h4",
+  upload: "M12 16V4M7 9l5-5 5 5M5 20h14",
+  database: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zm0 0v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  collapse: "M4 4h16v16H4zM9 4v16M15 10l-2 2 2 2",
+  expand: "M4 4h16v16H4zM9 4v16M13 10l2 2-2 2",
+  search: "M11 18a7 7 0 100-14 7 7 0 000 14zM21 21l-5-5",
+  table: "M4 5h16v14H4zM4 10h16M4 14h16M10 5v14",
+  send: "M4 12l16-8-6 16-2-7z",
+  plus: "M12 5v14M5 12h14",
+  up: "M12 19V5M6 11l6-6 6 6",
+  down: "M12 5v14M6 13l6 6 6-6",
+  trash: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13",
+  chevron: "M6 9l6 6 6-6",
+  x: "M6 6l12 12M18 6L6 18",
 };
 
 export default function Icon({ name, ...rest }: { name: string } & SVGProps<SVGSVGElement>) {

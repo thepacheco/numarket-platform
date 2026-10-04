@@ -102,12 +102,21 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.p
 
 /* ---------- reports ---------- */
 export type ReportRow = { slug: string; title: string; description: string; layout: ReportLayout; draft: Record<string, string>; draft_updated_at: Date | null; draft_by: string | null };
+export type ReportSection =
+  | { type: "kpis"; blocks: unknown[] }
+  | { type: "commentary"; key: string; title: string; placeholder?: string }
+  | { type: "block"; block: unknown }
+  | { type: "pagebreak" };
 export type ReportLayout = {
   prepared_for?: string | null;
   job?: string | null;
-  /* the reporting cadence shown on the cover, e.g. "week" */
+  /* the reporting cadence shown on the cover: "week", "two weeks", "month" */
   period?: string;
-  sections: ({ type: "kpis"; blocks: unknown[] } | { type: "commentary"; key: string; title: string; placeholder?: string } | { type: "block"; block: unknown })[];
+  /* the date range for dated numbers: "lm", "3m", "12m", "ytd" */
+  range?: string;
+  /* includes company-wide numbers, so people with a limited scope don't see it */
+  wholeCompany?: boolean;
+  sections: ReportSection[];
 };
 export async function listReports(db: Db) {
   return (
@@ -137,6 +146,20 @@ export async function reportVersions(db: Db, slug: string) {
       [slug],
     )
   ).rows;
+}
+export async function createReport(db: Db, r: { slug: string; title: string; description: string; layout: ReportLayout; userId: string }) {
+  const n = (await db.query<{ n: number }>("select count(*)::int as n from reports")).rows[0].n;
+  if (n >= 25) throw new Error("This workspace already has 25 reports.");
+  await db.query(
+    "insert into reports (tenant_id, slug, title, description, layout, draft, draft_updated_by, draft_updated_at, sort) values (current_tenant(), $1, $2, $3, $4, '{}', $5, now(), $6)",
+    [r.slug, r.title, r.description, JSON.stringify(r.layout), r.userId, n + 1],
+  );
+}
+export async function updateReportDesign(db: Db, slug: string, r: { title: string; description: string; layout: ReportLayout }) {
+  await db.query("update reports set title = $2, description = $3, layout = $4 where slug = $1", [slug, r.title, r.description, JSON.stringify(r.layout)]);
+}
+export async function deleteReport(db: Db, slug: string) {
+  return (await db.query("delete from reports where slug = $1", [slug])).rowCount === 1;
 }
 export async function saveDraft(db: Db, slug: string, draft: Record<string, string>, userId: string) {
   await db.query("update reports set draft = $2, draft_updated_by = $3, draft_updated_at = now() where slug = $1", [slug, JSON.stringify(draft), userId]);
@@ -220,4 +243,31 @@ export async function listSources(db: Db) {
 export type CheckRow = { id: string; name: string; source: string; status: "pass" | "warn" | "fail"; detail: string; last_run_at: Date };
 export async function listChecks(db: Db) {
   return (await db.query<CheckRow>("select id, name, source, status, detail, last_run_at from data_checks order by case status when 'fail' then 0 when 'warn' then 1 else 2 end, name")).rows;
+}
+
+/* ---------- data reports and the table catalog ---------- */
+export type DataReportRow = { slug: string; title: string; description: string; category: string; definition: unknown };
+export async function listDataReports(db: Db) {
+  return (await db.query<DataReportRow>("select slug, title, description, category, definition from data_reports order by sort")).rows;
+}
+export async function getDataReport(db: Db, slug: string) {
+  return (await db.query<DataReportRow>("select slug, title, description, category, definition from data_reports where slug = $1", [slug])).rows[0] ?? null;
+}
+export type CatalogRow = { dataset: string; name: string; title: string; description: string; grain: string; sources: string };
+export async function listCatalog(db: Db) {
+  return (await db.query<CatalogRow>("select dataset, name, title, description, grain, sources from catalog_tables order by sort")).rows;
+}
+
+/* ---------- connecting a source (demo) ---------- */
+export async function addSource(db: Db, s: { provider: string; name: string; tier: string; connection: string; streams: string[] }) {
+  const exists = await db.query("select 1 from sources where provider = $1", [s.provider]);
+  if (exists.rowCount) {
+    await db.query("update sources set status = 'syncing', last_sync_at = null where provider = $1", [s.provider]);
+    return;
+  }
+  await db.query(
+    `insert into sources (tenant_id, provider, name, tier, connection, status, rows_loaded, streams, sort)
+     values (current_tenant(), $1, $2, $3, $4, 'syncing', 0, $5, 50)`,
+    [s.provider, s.name, s.tier, s.connection, s.streams],
+  );
 }

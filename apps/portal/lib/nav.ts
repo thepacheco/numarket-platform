@@ -29,14 +29,17 @@ export function navFor(ctx: TenantContext): NavSection[] {
   };
   const foundation: NavItem[] = [];
   if (ctx.can("sources.view")) foundation.push({ href: "/sources", icon: "plug", label: "Sources" });
+  if (ctx.can("input.submit")) foundation.push({ href: "/upload", icon: "upload", label: "Upload files" });
+  if (ctx.can("sources.view")) foundation.push({ href: "/data", icon: "database", label: "Data tables" });
   if (ctx.can("flags.view")) foundation.push({ href: "/health", icon: "pulse", label: "Data health" }, { href: "/flags", icon: "flag", label: "Flags", badge: "flags" });
   if (ctx.can("definitions.view")) foundation.push({ href: "/definitions", icon: "book", label: "Definitions" });
 
   const workspace: NavItem[] = [];
   if (ctx.can("dashboard.view")) workspace.push({ href: "/dashboards", icon: "chart", label: "Dashboards" });
+  if (ctx.can("report.view")) workspace.push({ href: "/reports", icon: "report", label: "Status reports" });
+  if (ctx.can("dashboard.view")) workspace.push({ href: "/run", icon: "list", label: "Run a report" });
   if (ctx.can("input.submit")) workspace.push({ href: "/inputs", icon: "form", label: "Input screens" });
-  if (ctx.can("report.view")) workspace.push({ href: "/reports", icon: "report", label: "Reports" });
-  if (ctx.can("ask.use")) workspace.push({ href: "/available/ask", icon: "chat", label: "Ask Your Data", locked: true });
+  if (ctx.can("ask.use")) workspace.push({ href: "/ask", icon: "chat", label: "Ask Your Data" });
 
   const insight: NavItem[] = [];
   if (ctx.can("actions.view")) insight.push({ href: "/reviews", icon: "review", label: "Monthly reviews" });

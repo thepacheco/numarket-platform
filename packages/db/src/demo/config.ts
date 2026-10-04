@@ -225,28 +225,96 @@ export const SCREENS = [
   },
 ];
 
+/* ---------- status report templates ----------
+   Every report is built from sections: commentary written by people, key
+   numbers, and charts or tables from the workspace's building blocks. Clients
+   can start from a template and change the sections themselves. */
+
+const statement = {
+  type: "statement", title: "Profit and loss statement", dataset: "pnl", span: 3, percentOf: "Revenue",
+  groups: ["Revenue", "Cost of goods sold", "Operating expenses"],
+  subtotals: [
+    { label: "Gross profit", after: "Cost of goods sold", plus: ["Revenue"], minus: ["Cost of goods sold"] },
+    { label: "Net income", after: "Operating expenses", plus: ["Revenue"], minus: ["Cost of goods sold", "Operating expenses"] },
+  ],
+};
+const arStacked = { type: "stacked", title: "Who owes you, by age", dataset: "ar_aging", category: "customer", segments: aging, format: "money", span: 2, definition: "ar_outstanding" };
+const revByCustomer = { type: "bar", title: "Revenue by customer", dataset: "revenue_by_customer", category: "customer", of: "amount", format: "money", limit: 8, definition: "revenue" };
+const crewByJob = { type: "bar", title: "Crew hours this week, by job", dataset: "crew_hours", category: "job_name", of: "hours", format: "hours", definition: "crew_hours" };
+const commentary = (key: string, title: string, placeholder: string) => ({ type: "commentary", key, title, placeholder });
+
+export const REPORT_TEMPLATES = [
+  {
+    key: "weekly",
+    name: "Weekly status report",
+    about: "For the leadership team every Monday: summary, key numbers, every job at a glance, cost and change orders, field hours, a financial snapshot, risks, and next week.",
+    layout: {
+      period: "week", range: "12m", wholeCompany: true,
+      sections: [
+        commentary("summary", "Summary", "What happened across the jobs this week."),
+        { type: "kpis", blocks: [k.spent, k.cpi, k.over, k.rfis] },
+        { type: "block", block: { ...jobsTable, title: "Projects at a glance" } },
+        { type: "block", block: { ...costTrend, title: "Budget for work done vs. actual cost" } },
+        { type: "block", block: coByCause },
+        { type: "block", block: crewByJob },
+        commentary("money", "Financial snapshot", "Billing, margin, and cash in a few lines."),
+        { type: "kpis", blocks: [k.revenue, k.netIncome, k.cash, k.arOver60] },
+        commentary("risks", "Risks and issues", "What could slip, and what you're doing about it."),
+        commentary("next", "Next week", "The few things that matter next week."),
+      ],
+    },
+  },
+  {
+    key: "owner",
+    name: "Owner report for one job",
+    about: "Sent to the project owner, in their name: progress, the job's numbers, cost against budget, change orders, and what's coming up.",
+    layout: {
+      period: "two weeks", range: "12m",
+      sections: [
+        commentary("summary", "Progress", "Progress since the last report."),
+        { type: "kpis", blocks: [k.spent, k.cpi, { type: "kpi", title: "Complete", dataset: "job_summary", value: { agg: "avg", of: "pct_complete" }, format: "pct", definition: "pct_complete" }, k.rfis] },
+        { type: "block", block: { ...costTrend, title: "Budget for work done vs. actual cost", span: 3 } },
+        { type: "block", block: coByCause },
+        commentary("next", "Coming up", "Milestones in the next two weeks."),
+      ],
+    },
+  },
+  {
+    key: "monthly-financial",
+    name: "Monthly financial summary",
+    about: "For owners and the board after month end: revenue, margin, net income and cash against the prior month, the P&L, who owes you, and the outlook.",
+    layout: {
+      period: "month", range: "lm", wholeCompany: true,
+      sections: [
+        commentary("summary", "The month in brief", "Three or four sentences on how the month went."),
+        { type: "kpis", blocks: [k.revenue, k.grossMargin, k.netIncome, k.cash] },
+        { type: "block", block: statement },
+        { type: "pagebreak" },
+        { type: "block", block: revByCustomer },
+        { type: "block", block: arStacked },
+        commentary("cash", "Cash and collections", "Anything slow to pay, and what you're doing about it."),
+        commentary("outlook", "Outlook", "What next month looks like."),
+      ],
+    },
+  },
+  {
+    key: "blank",
+    name: "Blank report",
+    about: "Start with one summary section and add what you need.",
+    layout: { period: "week", range: "12m", sections: [commentary("summary", "Summary", "Write your summary here.")] },
+  },
+];
+const template = (key: string) => REPORT_TEMPLATES.find((t) => t.key === key)!.layout;
+
 export const REPORTS = [
   {
     slug: "weekly-status",
     title: "Weekly status report",
     description: "The Monday report for the leadership team. Numbers fill in from your data; your team writes the commentary.",
-    layout: {
-      prepared_for: null,
-      job: null,
-      period: "week",
-      sections: [
-        { type: "commentary", key: "summary", title: "Summary", placeholder: "What happened across the jobs this week." },
-        { type: "kpis", blocks: [k.spent, k.cpi, k.over, k.rfis] },
-        { type: "block", block: { ...jobsTable, title: "Projects at a glance" } },
-        { type: "block", block: { ...costTrend, title: "Budget for work done vs. actual cost, last 12 months" } },
-        { type: "block", block: coByCause },
-        { type: "block", block: { type: "bar", title: "Crew hours this week, by job", dataset: "crew_hours", category: "job_name", of: "hours", format: "hours" } },
-        { type: "commentary", key: "risks", title: "Risks and issues", placeholder: "What could slip, and what you're doing about it." },
-        { type: "commentary", key: "next", title: "Next week", placeholder: "The few things that matter next week." },
-      ],
-    },
+    layout: { ...template("weekly"), prepared_for: null, job: null },
     draft: {
       summary: "Terminal Expansion passed its steel inspection on the east concourse. Data Center Shell is ahead of budget for the work done so far, and Substation Upgrade is on track to finish in November.",
+      money: "Billing held steady and margins are in line with last month. Cash is healthy; the one slow payer is Halden County DOT.",
       risks: "Route 9 Bridge is running over budget for the work done, driven by design-error change orders. Twenty-one RFIs are open there, five of them for more than three weeks. Halden County DOT has $212K outstanding past 60 days.",
       next: "Resolve the five oldest RFIs on Route 9 Bridge. Review design-error change orders with the engineer of record on Thursday. Follow up on the Halden County DOT payment.",
     },
@@ -254,23 +322,146 @@ export const REPORTS = [
   {
     slug: "owner-report-108",
     title: "Owner report: Terminal Expansion",
-    description: "Sent to the project owner every two weeks, in their branding.",
-    layout: {
-      prepared_for: "Northgate Airport Authority",
-      job: "108",
-      period: "two weeks",
-      sections: [
-        { type: "commentary", key: "summary", title: "Progress", placeholder: "Progress since the last report." },
-        { type: "kpis", blocks: [k.spent, k.cpi, { type: "kpi", title: "Complete", dataset: "job_summary", value: { agg: "avg", of: "pct_complete" }, format: "pct", definition: "pct_complete" }, k.rfis] },
-        { type: "block", block: { ...costTrend, title: "Budget for work done vs. actual cost", span: 3 } },
-        { type: "commentary", key: "next", title: "Coming up", placeholder: "Milestones in the next two weeks." },
-      ],
-    },
+    description: "Sent to the project owner every two weeks, in their name.",
+    layout: { ...template("owner"), prepared_for: "Northgate Airport Authority", job: "108" },
     draft: {
       summary: "Steel erection on the east concourse is complete and passed inspection. Curtain wall installation started on schedule.",
       next: "Roofing begins on the east concourse. Two RFIs on door hardware are with the architect.",
     },
   },
+  {
+    slug: "route-9-update",
+    title: "Route 9 Bridge: owner update",
+    description: "Every two weeks to Halden County DOT. Written by the project manager.",
+    layout: { ...template("owner"), prepared_for: "Halden County DOT", job: "114" },
+    draft: {
+      summary: "The span 2 deck pour is complete. Pier 3 rebar is being re-detailed after a design change.",
+      next: "Pier 3 rebar inspection, then the span 3 deck forms. We need answers on RFIs 197 and 201 to hold the schedule.",
+    },
+  },
+  {
+    slug: "monthly-financial",
+    title: "Monthly financial summary",
+    description: "After month end, for the owners. Prepared by the finance lead.",
+    layout: { ...template("monthly-financial"), prepared_for: null, job: null },
+    draft: {
+      summary: "Revenue and margin were in line with the plan. Net income held, and cash stayed above four months of operating costs.",
+      cash: "Halden County DOT is the only customer more than 60 days late. A call is scheduled this week.",
+      outlook: "Data Center Shell billing continues to ramp. Expect a similar month, with Terminal Expansion slowing until curtain wall starts.",
+    },
+  },
+];
+
+/* ---------- data reports (run on demand) ---------- */
+const moneyCol = (field: string, label: string) => ({ field, label, format: "money" });
+const monthCol = { field: "month", label: "Month", format: "month" };
+export const DATA_REPORTS = [
+  {
+    slug: "job-cost", title: "Job cost by month", category: "Projects",
+    description: "Budget for the work done and actual cost, by job or by month.",
+    definition: {
+      dataset: "cost_trend", filters: { date: true, job: true },
+      groupings: [
+        { key: "job", label: "By job", columns: [{ field: "job_name", label: "Job" }, moneyCol("earned", "Budget for work done"), moneyCol("actual", "Actual cost")], groupBy: { by: ["job_name"], sum: ["earned", "actual"] }, sort: { field: "actual", dir: "desc" } },
+        { key: "month", label: "By month", columns: [monthCol, moneyCol("earned", "Budget for work done"), moneyCol("actual", "Actual cost")], groupBy: { by: ["month"], sum: ["earned", "actual"] }, sort: { field: "month", dir: "asc" } },
+        { key: "detail", label: "Every row", columns: [monthCol, { field: "job_name", label: "Job" }, moneyCol("earned", "Budget for work done"), moneyCol("actual", "Actual cost")], sort: { field: "month", dir: "desc" } },
+      ],
+    },
+  },
+  {
+    slug: "change-orders", title: "Change order log", category: "Projects",
+    description: "Approved change orders by job, cause, or month.",
+    definition: {
+      dataset: "change_orders", filters: { date: true, job: true },
+      groupings: [
+        { key: "detail", label: "Every change order", columns: [monthCol, { field: "job_name", label: "Job" }, { field: "cause", label: "Cause" }, moneyCol("amount", "Amount")], sort: { field: "month", dir: "desc" } },
+        { key: "job", label: "By job", columns: [{ field: "job_name", label: "Job" }, { field: "count", label: "Count", format: "num" }, moneyCol("amount", "Amount")], groupBy: { by: ["job_name"], sum: ["count", "amount"] }, sort: { field: "amount", dir: "desc" } },
+        { key: "cause", label: "By cause", columns: [{ field: "cause", label: "Cause" }, { field: "count", label: "Count", format: "num" }, moneyCol("amount", "Amount")], groupBy: { by: ["cause"], sum: ["count", "amount"] }, sort: { field: "amount", dir: "desc" } },
+        { key: "month", label: "By month", columns: [monthCol, { field: "count", label: "Count", format: "num" }, moneyCol("amount", "Amount")], groupBy: { by: ["month"], sum: ["count", "amount"] }, sort: { field: "month", dir: "asc" } },
+      ],
+    },
+  },
+  {
+    slug: "open-rfis", title: "Open RFIs", category: "Projects",
+    description: "Every open RFI, oldest first, with who it's waiting on.",
+    definition: {
+      dataset: "rfis", filters: { job: true },
+      groupings: [{ key: "detail", label: "Every RFI", columns: [{ field: "number", label: "RFI" }, { field: "job_name", label: "Job" }, { field: "subject", label: "Subject" }, { field: "ball_in_court", label: "Waiting on" }, { field: "opened", label: "Opened", format: "date" }, { field: "days_open", label: "Days open", format: "num" }], sort: { field: "days_open", dir: "desc" } }],
+    },
+  },
+  {
+    slug: "field-reports", title: "Field reports", category: "Projects",
+    description: "Daily field reports as entered, or crew hours by job.",
+    definition: {
+      dataset: "field_reports", filters: { date: true, job: true },
+      groupings: [
+        { key: "detail", label: "Every report", columns: [{ field: "date", label: "Date", format: "date" }, { field: "job_name", label: "Job" }, { field: "crew_hours", label: "Crew hours", format: "hours" }, { field: "by", label: "Entered by" }, { field: "note", label: "Note" }, { field: "via", label: "From" }], sort: { field: "date", dir: "desc" } },
+        { key: "job", label: "By job", columns: [{ field: "job_name", label: "Job" }, { field: "crew_hours", label: "Crew hours", format: "hours" }], groupBy: { by: ["job_name"], sum: ["crew_hours"] }, sort: { field: "crew_hours", dir: "desc" } },
+      ],
+    },
+  },
+  {
+    slug: "pnl-by-account", title: "Profit and loss by account", category: "Financials",
+    description: "Every income and expense account for the period, or by month.",
+    definition: {
+      dataset: "pnl", wholeCompany: true, filters: { date: true },
+      groupings: [
+        { key: "account", label: "By account", columns: [{ field: "section", label: "Section" }, { field: "account", label: "Account" }, moneyCol("amount", "Amount")], groupBy: { by: ["section", "account", "sort"], sum: ["amount"] }, sort: { field: "sort", dir: "asc" } },
+        { key: "month", label: "By month and section", columns: [monthCol, { field: "section", label: "Section" }, moneyCol("amount", "Amount")], groupBy: { by: ["month", "section"], sum: ["amount"] }, sort: { field: "month", dir: "asc" } },
+      ],
+    },
+  },
+  {
+    slug: "revenue-by-customer", title: "Revenue by customer", category: "Financials",
+    description: "Invoiced revenue by customer or by month.",
+    definition: {
+      dataset: "revenue_by_customer", wholeCompany: true, filters: { date: true },
+      groupings: [
+        { key: "customer", label: "By customer", columns: [{ field: "customer", label: "Customer" }, moneyCol("amount", "Revenue")], groupBy: { by: ["customer"], sum: ["amount"] }, sort: { field: "amount", dir: "desc" } },
+        { key: "month", label: "By month", columns: [monthCol, moneyCol("amount", "Revenue")], groupBy: { by: ["month"], sum: ["amount"] }, sort: { field: "month", dir: "asc" } },
+        { key: "detail", label: "Every row", columns: [monthCol, { field: "customer", label: "Customer" }, moneyCol("amount", "Revenue")], sort: { field: "month", dir: "desc" } },
+      ],
+    },
+  },
+  {
+    slug: "ar-aging", title: "Receivables aging", category: "Financials",
+    description: "What each customer owes, by how long it's been open. As of today.",
+    definition: { dataset: "ar_aging", wholeCompany: true, filters: {}, groupings: [{ key: "detail", label: "By customer", columns: agingCols("customer", "Customer"), sort: { field: "total", dir: "desc" } }] },
+  },
+  {
+    slug: "ap-aging", title: "Payables aging", category: "Financials",
+    description: "What you owe each vendor, by how long it's been open. As of today.",
+    definition: { dataset: "ap_aging", wholeCompany: true, filters: {}, groupings: [{ key: "detail", label: "By vendor", columns: [...agingCols("vendor", "Vendor"), moneyCol("due_7d", "Due in 7 days")], sort: { field: "total", dir: "desc" } }] },
+  },
+  {
+    slug: "vendor-spend", title: "Spend by vendor", category: "Financials",
+    description: "What you spent with each vendor, or by month.",
+    definition: {
+      dataset: "vendor_spend", wholeCompany: true, filters: { date: true },
+      groupings: [
+        { key: "vendor", label: "By vendor", columns: [{ field: "vendor", label: "Vendor" }, moneyCol("amount", "Spend")], groupBy: { by: ["vendor"], sum: ["amount"] }, sort: { field: "amount", dir: "desc" } },
+        { key: "month", label: "By month", columns: [monthCol, moneyCol("amount", "Spend")], groupBy: { by: ["month"], sum: ["amount"] }, sort: { field: "month", dir: "asc" } },
+      ],
+    },
+  },
+];
+
+/* ---------- the tenant's clean tables (their private database) ---------- */
+export const CATALOG_TABLES = [
+  { dataset: "job_summary", name: "CLEAN.JOBS", title: "Jobs", description: "Every active job with budget, cost, progress, and status to date.", grain: "One row per active job", sources: "Procore, QuickBooks Online, Excel budgets" },
+  { dataset: "cost_trend", name: "CLEAN.JOB_COST_MONTHLY", title: "Job cost by month", description: "Budget for the work done and actual cost for each job, each month.", grain: "One row per job per month", sources: "QuickBooks Online job costs, Excel budgets" },
+  { dataset: "change_orders", name: "CLEAN.CHANGE_ORDERS", title: "Change orders", description: "Approved change orders with job, cause, and amount.", grain: "One row per job, cause, and month", sources: "Procore, change order log (input screen)" },
+  { dataset: "rfis", name: "CLEAN.RFIS_OPEN", title: "Open RFIs", description: "RFIs not yet answered, with age and who they're waiting on.", grain: "One row per open RFI", sources: "Procore" },
+  { dataset: "rfi_trend", name: "CLEAN.RFI_ACTIVITY_MONTHLY", title: "RFI activity", description: "RFIs opened and answered each month.", grain: "One row per job per month", sources: "Procore" },
+  { dataset: "field_reports", name: "APP.FIELD_REPORTS", title: "Field reports", description: "Daily field reports entered by your superintendents in the Portal.", grain: "One row per report", sources: "Daily field report (input screen)" },
+  { dataset: "crew_hours_monthly", name: "CLEAN.CREW_HOURS_MONTHLY", title: "Crew hours by month", description: "Field crew hours and labor cost by job and month.", grain: "One row per job per month", sources: "Field reports, payroll rate table" },
+  { dataset: "crew_hours", name: "CLEAN.CREW_HOURS_THIS_WEEK", title: "Crew hours this week", description: "This week's crew hours by job and day.", grain: "One row per job per day", sources: "Field reports" },
+  { dataset: "pnl", name: "CLEAN.GL_MONTHLY", title: "General ledger by month", description: "Every income and expense account, summed by month.", grain: "One row per account per month", sources: "QuickBooks Online" },
+  { dataset: "revenue_by_customer", name: "CLEAN.REVENUE_BY_CUSTOMER", title: "Revenue by customer", description: "Invoiced revenue by customer and month.", grain: "One row per customer per month", sources: "QuickBooks Online invoices" },
+  { dataset: "cash", name: "CLEAN.CASH_MONTHLY", title: "Cash by month", description: "Month-end balance across operating bank accounts.", grain: "One row per month", sources: "QuickBooks Online bank accounts" },
+  { dataset: "ar_aging", name: "CLEAN.AR_AGING", title: "Receivables aging", description: "Open customer balances by age bucket.", grain: "One row per customer", sources: "QuickBooks Online invoices and payments" },
+  { dataset: "ap_aging", name: "CLEAN.AP_AGING", title: "Payables aging", description: "Open vendor balances by age bucket.", grain: "One row per vendor", sources: "QuickBooks Online bills" },
+  { dataset: "vendor_spend", name: "CLEAN.VENDOR_SPEND_MONTHLY", title: "Vendor spend", description: "What you spent with each vendor each month.", grain: "One row per vendor per month", sources: "QuickBooks Online bills" },
 ];
 
 export const DEFINITIONS = [

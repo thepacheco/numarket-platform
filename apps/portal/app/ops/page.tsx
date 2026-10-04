@@ -3,7 +3,6 @@ import { withPlatform, withTenant } from "@numarket/db";
 import { TIER_LIMITS } from "@numarket/metering";
 import { requireStaff } from "@/lib/guard";
 import { ago } from "@/lib/data";
-import { staffSignOut } from "./actions";
 
 /* All tenants at a glance. Per-tenant numbers are read one tenant at a time
    through row-level security, the same as the tenant app. */
@@ -42,7 +41,7 @@ export default async function Ops() {
             Signed in as {staff.user.name} ({staff.platformRole.replace("_", " ")}).
           </p>
         </div>
-        <form action={staffSignOut}>
+        <form action="/sign-out" method="post">
           <button className="btn btn-secondary" type="submit">
             Sign out
           </button>

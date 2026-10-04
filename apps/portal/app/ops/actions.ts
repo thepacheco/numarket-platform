@@ -1,9 +1,7 @@
 "use server";
 
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { revokeSession, SESSION_COOKIE, tenantBySlug } from "@numarket/auth";
+import { tenantBySlug } from "@numarket/auth";
 import { withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
 import { publishSimulated } from "@numarket/db/repo/snapshots";
@@ -11,13 +9,6 @@ import { resetDemoTenant } from "@numarket/db/provision";
 import { ActionError, staffOrThrow } from "@/lib/guard";
 
 export type ActionResult = { ok: boolean; message: string };
-
-export async function staffSignOut() {
-  const jar = await cookies();
-  await revokeSession(jar.get(SESSION_COOKIE.ops)?.value);
-  jar.delete(SESSION_COOKIE.ops);
-  redirect("/ops/sign-in");
-}
 
 /* Staff actions on a tenant are written to that tenant's audit log, which the
    client can read (Spec §4.4). */

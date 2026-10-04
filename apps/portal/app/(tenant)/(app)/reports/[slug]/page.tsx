@@ -37,12 +37,17 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
       <div className="page-head no-print">
         <div>
           <p className="eyebrow">
-            <Link href="/reports">Reports</Link>
+            <Link href="/reports">Status reports</Link>
           </p>
           <h1>{report.title}</h1>
           <p>{report.description}</p>
         </div>
         <div className="row">
+          {ctx.can("report.edit") && (
+            <Link className="btn btn-secondary" href={`/reports/${slug}/design`}>
+              Design
+            </Link>
+          )}
           {versions.length > 0 && (
             <Link className="btn btn-secondary" href={wantDraft ? `/reports/${slug}` : `/reports/${slug}?view=draft`}>
               {wantDraft ? "See the published version" : "See the draft"}

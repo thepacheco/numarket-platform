@@ -13,7 +13,7 @@ export default function ReportDocument({
   layout: ReportLayout; commentary: Record<string, string>; datasets: Datasets; publishedAt: Date | string; ctx: TenantContext; defs: Defs;
   brand: { name: string; logo: string; footer: string | null }; title: string; meta: string;
 }) {
-  const c: BlockContext = { datasets, scope: ctx.scope, eq: { job: layout.job ?? undefined }, range: resolveRange(asOfMonth(publishedAt, ctx.tenant.timezone), "12m"), defs };
+  const c: BlockContext = { datasets, scope: ctx.scope, eq: { job: layout.job ?? undefined }, range: resolveRange(asOfMonth(publishedAt, ctx.tenant.timezone), layout.range ?? "12m"), defs };
   return (
     <article className="report-doc" aria-label={title}>
       <header className="report-head">
@@ -30,13 +30,14 @@ export default function ReportDocument({
           if (s.type === "kpis") {
             const blocks = s.blocks as KpiBlock[];
             return (
-              <div className="dash-row kpis" key={i}>
+              <div className="dash-row kpis" key={i} style={{ ["--n" as string]: Math.min(4, blocks.length) }}>
                 {blocks.map((b, j) => (
                   <BlockView key={j} block={b} c={c} />
                 ))}
               </div>
             );
           }
+          if (s.type === "pagebreak") return <hr key={i} className="page-break" aria-label="Page break" />;
           if (s.type === "commentary") {
             return (
               <section key={i}>

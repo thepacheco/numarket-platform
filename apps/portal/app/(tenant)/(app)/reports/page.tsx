@@ -5,7 +5,7 @@ import { listReports } from "@numarket/db/repo/workspace";
 import { ago, reportVisible } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 
-export const metadata: Metadata = { title: "Reports" };
+export const metadata: Metadata = { title: "Status reports" };
 
 export default async function Reports() {
   const ctx = await requireTenant("report.view");
@@ -15,9 +15,14 @@ export default async function Reports() {
       <div className="page-head">
         <div>
           <p className="eyebrow">Workspace</p>
-          <h1>Reports</h1>
+          <h1>Status reports</h1>
           <p>Your status reports, in your format. The numbers fill in from your data; your team writes the story.</p>
         </div>
+        {ctx.can("report.edit") && (
+          <Link href="/reports/new" className="btn btn-primary">
+            New report
+          </Link>
+        )}
       </div>
       <ul className="list">
         {reports.map((r) => (

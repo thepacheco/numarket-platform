@@ -1,5 +1,6 @@
 import "server-only";
-import type { Block, DashboardLayout } from "@numarket/blocks";
+import type { Block } from "@numarket/blocks";
+import { blockCatalog, isChart, type CatalogItem } from "./catalog";
 import type { TenantContext } from "@numarket/auth";
 import type { HomeLayout } from "@numarket/db/repo/workspace";
 
@@ -17,26 +18,9 @@ export const PANELS = [
 ] as const;
 
 export function catalog(dashboards: { slug: string; title: string; layout: unknown }[], ctx: TenantContext) {
-  const kpis: Widget[] = [];
-  const charts: Widget[] = [];
-  if (!ctx.can("dashboard.view")) return { kpis, charts };
-  const seen = new Set<string>();
-  for (const d of dashboards) {
-    const l = d.layout as DashboardLayout;
-    if (ctx.scope && l.wholeCompany) continue;
-    for (const p of l.pages)
-      p.rows.forEach((row, i) =>
-        row.forEach((b, j) => {
-          const key = JSON.stringify(b);
-          if (seen.has(key)) return;
-          seen.add(key);
-          const w = { id: `${d.slug}.${p.slug}.${i}.${j}`, title: b.title, from: `${d.title} · ${p.title}`, block: b };
-          if (b.type === "kpi") kpis.push(w);
-          else if (b.type === "trend" || b.type === "columns" || b.type === "bar" || b.type === "stacked") charts.push(w);
-        }),
-      );
-  }
-  return { kpis, charts };
+  const all = ctx.can("dashboard.view") ? blockCatalog(dashboards, ctx) : [];
+  const toWidget = (c: CatalogItem): Widget => ({ id: c.id, title: c.title, from: c.from, block: c.block });
+  return { kpis: all.filter((c) => c.block.type === "kpi").map(toWidget), charts: all.filter((c) => isChart(c.block)).map(toWidget) };
 }
 
 const byTitle = (list: Widget[], titles: string[]) => titles.map((t) => list.find((w) => w.title === t)?.id).filter((x): x is string => !!x);

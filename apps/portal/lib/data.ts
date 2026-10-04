@@ -76,7 +76,10 @@ export function todayIn(tz: string) {
   return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
-/** A report fixed to one job is shown only to users whose scope includes it. */
-export function reportVisible(layout: { job?: string | null }, ctx: TenantContext) {
-  return !layout.job || !ctx.scope || ctx.scope.values.includes(layout.job);
+/** A report fixed to one job is shown only to people whose scope includes it;
+ *  a company-wide report only to people who see the whole company. */
+export function reportVisible(layout: { job?: string | null; wholeCompany?: boolean }, ctx: TenantContext) {
+  if (!ctx.scope) return true;
+  if (layout.wholeCompany) return false;
+  return !layout.job || ctx.scope.values.includes(layout.job);
 }

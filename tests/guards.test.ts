@@ -5,10 +5,10 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const APP = join(__dirname, "..", "apps", "portal", "app");
-const SIGN_IN_ROUTES = ["(tenant)/sign-in/demo/route.ts", "(tenant)/sign-in/dev/route.ts", "ops/sign-in/dev/route.ts"];
+const SIGN_IN_ROUTES = ["(tenant)/sign-in/demo/route.ts", "(tenant)/sign-in/dev/route.ts", "ops/sign-in/dev/route.ts", "(tenant)/sign-out/route.ts", "ops/sign-out/route.ts"];
 const PUBLIC = new Set([...SIGN_IN_ROUTES, "(tenant)/sign-in/page.tsx", "(tenant)/blocked/page.tsx", "ops/sign-in/page.tsx", "not-found.tsx", "layout.tsx", "ops/layout.tsx"]);
-/* sign-in and sign-out actions run before a session exists */
-const PUBLIC_ACTIONS = new Set(["signOut", "staffSignOut"]);
+/* sign-in and sign-out are route handlers (above), so every action is guarded */
+const PUBLIC_ACTIONS = new Set<string>();
 const GUARD = /\b(requireTenant|requireStaff|tenantOrThrow|staffOrThrow)\(/;
 
 function files(dir: string): string[] {
@@ -53,5 +53,14 @@ describe("access checks", () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+
+  it("actions don't redirect on the server (the follow-up render loses the workspace host)", () => {
+    for (const f of all.filter((x) => /actions\.ts$/.test(x.rel))) expect(readFileSync(f.path, "utf8"), f.rel).not.toMatch(/\bredirect\(/);
+  });
+
+  it("server pages pass plain elements, not render functions, to ActionForm", () => {
+    const bad = all.filter((f) => f.rel.endsWith("page.tsx") && /<ActionForm[^>]*>\s*\{\s*\(/.test(readFileSync(f.path, "utf8"))).map((f) => f.rel);
+    expect(bad).toEqual([]);
   });
 });

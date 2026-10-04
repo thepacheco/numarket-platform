@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { POLICY_REASONS } from "@numarket/auth";
 import { tenantForRequest } from "@/lib/guard";
 import { requestMeta } from "@/lib/request";
-import { signOut } from "../actions";
 
 export const metadata: Metadata = { title: "Access blocked" };
 
@@ -21,7 +20,7 @@ export default async function Blocked({ searchParams }: { searchParams: Promise<
         <h1 style={{ fontSize: 26, margin: "8px 0" }}>You can&apos;t get in right now.</h1>
         <p>{text}</p>
         {reason === "network" && <p className="small muted">Your address: {ip ?? "unknown"}. Your administrator can add your network to the allowed list.</p>}
-        <form action={signOut} style={{ marginTop: 16 }}>
+        <form action="/sign-out" method="post" style={{ marginTop: 16 }}>
           <button className="btn btn-secondary" type="submit">
             Sign in again
           </button>

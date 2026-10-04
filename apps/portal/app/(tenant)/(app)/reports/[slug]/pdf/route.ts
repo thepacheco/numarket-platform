@@ -44,7 +44,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const days = d.report.layout.period === "two weeks" ? 13 : 6;
   const start = new Date(ref.getTime() - days * 86_400_000);
   const day = (x: Date, year = false) => x.toLocaleDateString("en-US", { month: "short", day: "numeric", year: year ? "numeric" : undefined, timeZone: tz });
-  const periodLabel = d.report.layout.period ? `${d.report.layout.period === "week" ? "Week of " : ""}${day(start)} – ${day(ref, true)}` : day(ref, true);
+  const lastMonth = new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() - 1, 15)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+  const periodLabel = d.report.layout.period === "month" ? lastMonth : d.report.layout.period ? `${d.report.layout.period === "week" ? "Week of " : ""}${day(start)} – ${day(ref, true)}` : day(ref, true);
   const stamp = (x: Date | string) => new Date(x).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: tz });
   const versionLine = d.chosen ? `Version ${d.chosen.version} · published ${stamp(d.chosen.published_at)}${d.chosen.by_name ? ` by ${d.chosen.by_name}` : ""}` : `Draft · data as of ${stamp(d.snap.published_at)}`;
   const b = d.branding;

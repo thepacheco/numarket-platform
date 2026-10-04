@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { withTenant } from "@numarket/db";
 import { listSources } from "@numarket/db/repo/workspace";
 import { ago, fmtTime, workspace } from "@/lib/data";
@@ -6,7 +7,7 @@ import { requireTenant } from "@/lib/guard";
 
 export const metadata: Metadata = { title: "Sources" };
 
-const STATUS: Record<string, string> = { healthy: "Healthy", reconnect: "Reconnect needed", syncing: "Updating", paused: "Paused" };
+const STATUS: Record<string, string> = { healthy: "Healthy", reconnect: "Reconnect needed", syncing: "First copy tonight", paused: "Paused" };
 
 /* Every connected source (Spec §12.2). Connecting new sources arrives with
    the connector framework in Stage B; the wizard is shown but not live yet. */
@@ -23,11 +24,9 @@ export default async function Sources() {
           <h1>Sources</h1>
           <p>Each tool your data comes from. Every connection is read-only: it copies data out and can&apos;t change anything in your systems.</p>
         </div>
-        {ctx.can("sources.connect") && (
-          <button className="btn btn-primary" disabled aria-disabled="true" title="Connecting new sources goes live with the data pipeline.">
-            Connect a source
-          </button>
-        )}
+        <Link href="/sources/connect" className="btn btn-primary">
+          Connect a source
+        </Link>
       </div>
       <ul className="list">
         {sources.map((s) => (
@@ -44,7 +43,7 @@ export default async function Sources() {
             </div>
             <dl className="kv" style={{ marginTop: 10 }}>
               <dt>Last update</dt>
-              <dd>{s.last_sync_at ? ago(s.last_sync_at) : "Never"}</dd>
+              <dd>{s.last_sync_at ? ago(s.last_sync_at) : "Not yet"}</dd>
               <dt>Next update</dt>
               <dd>{s.status === "reconnect" ? "Paused until reconnected" : s.tier === "internal" ? `Entries publish at the ${next} update` : next}</dd>
               {s.tier !== "internal" && (

@@ -48,13 +48,48 @@ parts of Phase 1 (tenant admin) a demo needs.
 - Insight Review pages show the analyst's monthly review, computed from the
   same published data as the dashboards.
 
+**Completeness pass, October 4 (second walkthrough)**
+- Menu: each product is headed by its shape and color from the marketing site
+  (Foundation cube, Workspace dodecahedron, Insight Review octahedron,
+  Engineering icosahedron), with plain sub-items as in Snowflake's console.
+  Products not in the plan are gray with "Not in plan". The desktop menu
+  collapses to icons; on phones it opens full screen with a Close button and
+  closes after each tap.
+- Status reports have a structure and a designer: start from a template
+  (weekly, owner report for one job, monthly financial, blank), then add,
+  remove, reorder, and rename sections (written text, up to four key numbers,
+  any chart or table from the dashboards, page breaks). The server re-checks
+  every section; a one-job report can't include company-wide numbers. The PDF
+  follows the same layout.
+- Run a report: nine lists (job cost, change order log, open RFIs, field
+  reports, P&L by account, revenue by customer, AR and AP aging, vendor
+  spend) with period, job, and grouping, downloadable as CSV or PDF.
+- Data tables: the catalog of the client's clean tables in their private
+  database, with a preview, column list, and CSV download (scope and export
+  policy apply). A page explains read-only access from Excel, Power BI, or
+  Tableau, and what the client gets on exit.
+- Connect a source: a catalog of 21 connectors by category with tier
+  (Standard, Setup required, Custom) and how each connects. The demo adds an
+  official-connection source as if the client clicked Allow.
+- Upload files: CSV templates per input screen, a check that shows every row
+  with its errors before anything is added, then import of the rows that pass
+  (accepts job names or codes and US dates).
+- Ask Your Data (demo): common question types answered from the published
+  data within the person's access, with the definitions used and the update
+  time. Every question is in the audit log.
+- Fixes: actions no longer redirect on the server (the follow-up render lost
+  the workspace host and showed Not found); sign-out is a POST route like
+  sign-in; CSV exports keep negative numbers; PDF arrows and minus signs print
+  in Helvetica; each deploy refreshes the demo content.
+
 **Demo workspace (Summit Builders, fictional construction company)**
 - One-click sign-in as four people: Owner, Project manager (Route 9 Bridge
   only), Superintendent (contributor), CFO (viewer).
 - Home, two dashboards, CSV export (policy- and scope-aware), two input
-  screens, the weekly status report and an owner report "prepared for" a
-  client's customer (draft → publish → versions → Save as PDF), Sources,
-  Data health, Flags (settle, mark correct, assign, comment), Definitions
+  screens, four status reports including owner reports "prepared for" a
+  client's customer (draft → publish → versions → PDF), the report designer,
+  Run a report, Data tables, Connect a source, Upload files, Ask Your Data,
+  Sources, Data health, Flags (settle, mark correct, reopen), Definitions
   (suggest a change).
 - Entries save instantly and reach dashboards at the next update. Admins can
   press Update now (daily limit). Scheduled updates are simulated on the tier's
@@ -73,7 +108,10 @@ business data), Publish now, Reset demo.
 | Real sign-in (Microsoft, Google, email + MFA, SSO) via WorkOS | Before any real user. Needs the WorkOS account. |
 | Invitations by email | With the sign-in provider and email provider |
 | Worker, Snowflake provisioning, connectors, real pipelines | Stage B (spec Phases 3–4) |
-| Alerts, scheduled report emails, Ask Your Data | Phases 5 and 9 |
+| Alerts, scheduled report emails | Phase 5 |
+| Ask Your Data on Cortex in the client's account (the demo answers set question types) | Phase 9 |
+| Real connector sign-ins (OAuth) and folder sync | Stage B, with the worker |
+| Read-only BI logins to the client's tables | Stage B, with Snowflake provisioning |
 | Metering against real warehouse cost | Phase 6 |
 | Insight Review pages, Requests | Phase 7 |
 | Mapping studio and builders in the ops console | Phase 8 |

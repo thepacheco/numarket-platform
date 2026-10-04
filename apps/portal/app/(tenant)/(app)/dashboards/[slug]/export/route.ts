@@ -5,6 +5,7 @@ import { getDashboard } from "@numarket/db/repo/workspace";
 import { asOfMonth, dashState } from "@/components/Dashboard";
 import { workspace } from "@/lib/data";
 import { tenantOrThrow } from "@/lib/guard";
+import { csvCell } from "@/lib/csv";
 
 /* CSV export of the tables on one dashboard page, with the same period, job,
    and scope the person is looking at. Subject to the tenant's export policy
@@ -26,25 +27,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const ws = await workspace(ctx);
   const datasets = ws.snapshot?.datasets ?? {};
   const state = dashState(layout, datasets, ctx, Object.fromEntries(new URL(req.url).searchParams), asOfMonth(ws.snapshot?.published_at, ctx.tenant.timezone));
-  const esc = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    const safe = /^[=+\-@]/.test(s) ? "'" + s : s; // keep spreadsheets from running formulas
-    return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-  };
   const parts: string[] = [];
   for (const b of state.page.rows.flat()) {
     const dated = isDated(datasets, b.dataset);
     const filters = { eq: { job: state.job }, range: dated ? state.range?.current : null };
     if (b.type === "table") {
       const rows = tableRows(b, visibleRows(datasets, b.dataset, ctx.scope, filters));
-      parts.push(esc(b.title), b.columns.map((c) => esc(c.label)).join(","));
-      for (const r of rows) parts.push(b.columns.map((c) => esc(r[c.field])).join(","));
+      parts.push(csvCell(b.title), b.columns.map((c) => csvCell(c.label)).join(","));
+      for (const r of rows) parts.push(b.columns.map((c) => csvCell(r[c.field])).join(","));
       parts.push("");
     } else if (b.type === "statement") {
       const prior = dated && state.range?.prior ? visibleRows(datasets, b.dataset, ctx.scope, { eq: { job: state.job }, range: state.range.prior }) : null;
       const lines = statementData(b, visibleRows(datasets, b.dataset, ctx.scope, filters), prior);
-      parts.push(esc(`${b.title} (${state.range?.label ?? ""})`), "Line,This period,Prior period");
-      for (const l of lines) parts.push([esc(l.label), l.kind === "group" ? "" : Math.round(l.current), l.kind === "group" || l.prior === null ? "" : Math.round(l.prior)].join(","));
+      parts.push(csvCell(`${b.title} (${state.range?.label ?? ""})`), "Line,This period,Prior period");
+      for (const l of lines) parts.push([csvCell(l.label), l.kind === "group" ? "" : Math.round(l.current), l.kind === "group" || l.prior === null ? "" : Math.round(l.prior)].join(","));
       parts.push("");
     }
   }

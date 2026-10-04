@@ -1,0 +1,83 @@
+"use client";
+
+import { useActionState, useRef } from "react";
+import Icon from "./Icon";
+import type { AskState } from "@/lib/ask";
+
+export default function AskBox({ action, suggested, defs }: { action: (p: AskState | null, f: FormData) => Promise<AskState>; suggested: string[]; defs: Record<string, string> }) {
+  const [state, formAction, pending] = useActionState(action, null);
+  const input = useRef<HTMLInputElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  const ask = (q: string) => {
+    if (!input.current || !form.current) return;
+    input.current.value = q;
+    form.current.requestSubmit();
+  };
+  return (
+    <div className="ask">
+      <form ref={form} action={formAction} className="ask-box">
+        <Icon name="chat" />
+        <input ref={input} name="q" className="input" placeholder="Ask a question about your numbers" maxLength={300} autoComplete="off" aria-label="Your question" />
+        <button type="submit" className="btn btn-primary" disabled={pending}>
+          {pending ? "Thinking…" : "Ask"}
+        </button>
+      </form>
+      <div className="ask-suggest">
+        {suggested.map((s) => (
+          <button key={s} type="button" className="chip" onClick={() => ask(s)} disabled={pending}>
+            {s}
+          </button>
+        ))}
+      </div>
+      {state?.error && <p className="notice risk">{state.error}</p>}
+      {state?.items.map((it, i) => (
+        <section key={state.items.length - i} className={`card ask-answer${it.answer.ok ? "" : " ask-miss"}`}>
+          <p className="ask-q">{it.question}</p>
+          <h2>{it.answer.title}</h2>
+          <p style={{ margin: "0 0 10px" }}>{it.answer.text}</p>
+          {it.answer.table && it.answer.table.rows.length > 0 && (
+            <div className="table-wrap">
+              <table className="t">
+                <thead>
+                  <tr>
+                    {it.answer.table.columns.map((h, j) => (
+                      <th key={j} className={it.answer.table!.numeric[j] ? "num" : ""}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {it.answer.table.rows.map((r, k) => (
+                    <tr key={k}>
+                      {r.map((v, j) => (
+                        <td key={j} className={it.answer.table!.numeric[j] ? "num" : ""}>
+                          {v}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {it.answer.ok && (
+            <details className="ask-how">
+              <summary>How this was answered</summary>
+              <p className="small">
+                From <strong>{it.answer.basis}</strong>, data updated {it.updated}. Only rows you&apos;re allowed to see were used.
+              </p>
+              <ul className="small">
+                {it.answer.defs.map((d) => (
+                  <li key={d}>
+                    <strong>{d}:</strong> {defs[d] ?? ""}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}

@@ -21,6 +21,11 @@ export type Agg =
   | { agg: "last"; of: string; by: string };
 
 type Base = { title: string; dataset: string; definition?: string; span?: 1 | 2 | 3; note?: string };
+
+/** A stable id for a block, so reports and Home can refer to it. */
+export function blockId(b: { type: string; dataset: string; title: string }) {
+  return `${b.type}:${b.dataset}:${b.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
 export type KpiBlock = Base & { type: "kpi"; value: Agg; format: Format; better?: "up" | "down"; compare?: boolean };
 export type Series = { label: string; of: Expr };
 export type TrendBlock = Base & { type: "trend"; x: string; series: Series[]; format: Format };
@@ -37,6 +42,16 @@ export type StatementBlock = Base & {
 };
 export type Block = KpiBlock | TrendBlock | ColumnsBlock | BarBlock | StackedBlock | TableBlock | StatementBlock;
 
+/* ---------- data reports (run on demand) ---------- */
+export type Grouping = { key: string; label: string; columns: Column[]; groupBy?: { by: string[]; sum: string[] }; sort?: { field: string; dir: "asc" | "desc" } };
+export type DataReportDef = { dataset: string; wholeCompany?: boolean; filters: { date?: boolean; job?: boolean }; groupings: Grouping[] };
+
+export function runDataReport(def: DataReportDef, grouping: Grouping, rows: Rows) {
+  const block: TableBlock = { type: "table", title: "", dataset: def.dataset, columns: grouping.columns, groupBy: grouping.groupBy, sort: grouping.sort, totals: true };
+  const out = tableRows(block, rows);
+  return { rows: out, totals: tableTotals(block, out), block };
+}
+
 export type Page = { slug: string; title: string; rows: Block[][] };
 export type DashboardLayout = {
   /* hidden from people whose data scope is limited (company financials) */
@@ -52,12 +67,13 @@ export type Datasets = Record<string, Rows>;
 
 /* ---------- date ranges ---------- */
 
-export type RangeKey = "mtd" | "3m" | "6m" | "12m" | "ytd" | "custom";
+export type RangeKey = "mtd" | "lm" | "3m" | "6m" | "12m" | "ytd" | "custom";
 export type MonthRange = { from: string; to: string };
 export type RangeSel = { key: RangeKey; current: MonthRange; prior: MonthRange | null; label: string; compareLabel: string | null };
 
 export const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
   { key: "mtd", label: "This month" },
+  { key: "lm", label: "Last month" },
   { key: "3m", label: "Last 3 months" },
   { key: "6m", label: "Last 6 months" },
   { key: "12m", label: "Last 12 months" },
@@ -96,6 +112,7 @@ export function resolveRange(asOfMonth: string, key?: string | null, from?: stri
   const last = addMonths(asOfMonth, -1);
   let current: MonthRange;
   if (k === "mtd") current = { from: asOfMonth, to: asOfMonth };
+  else if (k === "lm") current = { from: last, to: last };
   /* year to date runs through the last complete month, so it compares fairly with last year */
   else if (k === "ytd") current = last >= `${asOfMonth.slice(0, 4)}-01` ? { from: `${asOfMonth.slice(0, 4)}-01`, to: last } : { from: asOfMonth, to: asOfMonth };
   else if (k === "custom" && validYm(from) && validYm(to) && from! <= to!) current = { from: from!, to: to! > asOfMonth ? asOfMonth : to! };

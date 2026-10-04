@@ -3,10 +3,11 @@ import { Document, Font, Page, StyleSheet, Svg, Line, Polyline, Rect, Text, View
 /* keep names whole: no hyphenation */
 Font.registerHyphenationCallback((word) => [word]);
 import {
-  barData, fmt, isDated, kpiData, monthLabel, resolveRange, seriesData, stackedData, tableRows, tableTotals, visibleRows,
+  barData, isDated, kpiData, monthLabel, resolveRange, seriesData, stackedData, statementData, tableRows, tableTotals, visibleRows,
   type Block, type Datasets, type Filters, type KpiBlock, type RangeSel,
 } from "@numarket/blocks";
 import type { Scope } from "@numarket/db/repo/snapshots";
+import { fmt, fmtChange, pdfText } from "./text";
 import type { ReportLayout } from "@numarket/db/repo/workspace";
 
 /* A status report as a real, designed PDF (not a printed web page): branded
@@ -81,7 +82,13 @@ function Kpis({ blocks, c }: { blocks: KpiBlock[]; c: Ctx }) {
           <View key={i} style={[s.kpi, i === blocks.length - 1 ? { marginRight: 0 } : {}]}>
             <Text style={s.kpiLabel}>{b.title}</Text>
             <Text style={s.kpiValue}>{d.value === null ? "—" : fmt(d.value, b.format)}</Text>
-            {d.status ? <Text style={[s.kpiNote, { color: tone }]}>{d.status}</Text> : <Text style={[s.kpiNote, { color: MUTED }]}>To date</Text>}
+            {d.status ? (
+              <Text style={[s.kpiNote, { color: tone }]}>{d.status}</Text>
+            ) : d.change !== null && Math.abs(d.change) <= 2 ? (
+              <Text style={[s.kpiNote, { color: tone }]}>{`${fmtChange(d.change, b.format)} ${c.range.compareLabel ?? ""}`}</Text>
+            ) : (
+              <Text style={[s.kpiNote, { color: MUTED }]}>{isDated(c.datasets, b.dataset) ? c.range.label : "To date"}</Text>
+            )}
           </View>
         );
       })}
@@ -232,8 +239,42 @@ function Stacked({ b, c }: { b: Extract<Block, { type: "stacked" }>; c: Ctx }) {
   );
 }
 
+function Statement({ b, c }: { b: Extract<Block, { type: "statement" }>; c: Ctx }) {
+  const lines = statementData(b, rowsFor(b, c)!, rowsFor(b, c, true));
+  const hasPrior = !!c.range.prior;
+  const col = (w: number, right = true) => ({ width: w, textAlign: right ? ("right" as const) : ("left" as const) });
+  return (
+    <View style={s.section}>
+      <Text style={s.blockTitle}>
+        {b.title}
+        <Text style={s.caption}>  {c.range.label}</Text>
+      </Text>
+      <View style={[s.row, { backgroundColor: SOFT, borderTopWidth: 1, borderTopColor: LINE }]}>
+        <Text style={[s.th, { flex: 1 }]}>Account</Text>
+        <Text style={[s.th, col(90)]}>This period</Text>
+        {hasPrior && <Text style={[s.th, col(90)]}>Prior period</Text>}
+        <Text style={[s.th, col(70)]}>% of revenue</Text>
+      </View>
+      {lines.map((l, i) =>
+        l.kind === "group" ? (
+          <Text key={i} style={{ fontFamily: "Helvetica-Bold", fontSize: 7.5, color: MUTED, textTransform: "uppercase", paddingTop: 8, paddingBottom: 3, paddingHorizontal: 5 }}>
+            {l.label}
+          </Text>
+        ) : (
+          <View key={i} style={[s.row, l.kind === "total" ? { backgroundColor: "#EEF4F8" } : {}]} wrap={false}>
+            <Text style={[s.td, { flex: 1, paddingLeft: l.kind === "line" ? 14 : 5, fontFamily: l.kind === "line" ? "Helvetica" : "Helvetica-Bold" }]}>{l.label}</Text>
+            <Text style={[s.td, col(90), l.kind === "line" ? {} : { fontFamily: "Helvetica-Bold" }]}>{fmt(l.current, "money", { full: true })}</Text>
+            {hasPrior && <Text style={[s.td, col(90), { color: MUTED }]}>{fmt(l.prior, "money", { full: true })}</Text>}
+            <Text style={[s.td, col(70), { color: MUTED }]}>{l.share === null ? "—" : fmt(l.share, "pct")}</Text>
+          </View>
+        ),
+      )}
+    </View>
+  );
+}
+
 function ReportPdf(p: ReportPdfInput) {
-  const c: Ctx = { datasets: p.datasets, scope: p.scope, eq: { job: p.layout.job ?? undefined }, range: resolveRange(p.asOfMonth, "12m") };
+  const c: Ctx = { datasets: p.datasets, scope: p.scope, eq: { job: p.layout.job ?? undefined }, range: resolveRange(p.asOfMonth, p.layout.range ?? "12m") };
   return (
     <Document title={`${p.title} · ${p.periodLabel}`} author={p.brand.name} creator="numarket Portal">
       <Page size="LETTER" style={s.page}>
@@ -258,15 +299,17 @@ function ReportPdf(p: ReportPdfInput) {
             return (
               <View key={i} style={s.section} wrap={false}>
                 <Text style={[s.h2, { borderLeftWidth: 2, borderLeftColor: p.brand.primary, paddingLeft: 6 }]}>{sec.title}</Text>
-                <Text style={s.para}>{p.commentary[sec.key]?.trim() || "Not written yet."}</Text>
+                <Text style={s.para}>{pdfText(p.commentary[sec.key]?.trim() || "Not written yet.")}</Text>
               </View>
             );
+          if (sec.type === "pagebreak") return <View key={i} break />;
           if (sec.type === "kpis") return <Kpis key={i} blocks={sec.blocks as KpiBlock[]} c={c} />;
           const b = sec.block as Block;
           if (b.type === "table") return <Table key={i} b={b} c={c} />;
           if (b.type === "trend" || b.type === "columns") return <Chart key={i} b={b} c={c} />;
           if (b.type === "bar") return <Bars key={i} b={b} c={c} />;
           if (b.type === "stacked") return <Stacked key={i} b={b} c={c} />;
+          if (b.type === "statement") return <Statement key={i} b={b} c={c} />;
           return null;
         })}
 

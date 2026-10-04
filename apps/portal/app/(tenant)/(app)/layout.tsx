@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { brandVars } from "@numarket/ui";
 import Icon from "@/components/Icon";
-import NavLink from "@/components/NavLink";
+import Rail from "@/components/Rail";
 import { requireTenant } from "@/lib/guard";
 import { fmtDateTime, fmtTime, jobsInScope, workspace } from "@/lib/data";
 import { canSeeSettings, navFor, ROLE_LABEL, scopeLabel } from "@/lib/nav";
-import { signOut } from "../actions";
 
 /* The tenant app shell. It reads the session only to draw the navigation;
    each page and action still checks access itself (lib/guard.ts). */
@@ -19,33 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const tz = ctx.tenant.timezone;
   const updated = ws.snapshot ? fmtDateTime(ws.snapshot.published_at, tz) : "not yet";
 
-  const rail = (
-    <nav className="rail" aria-label="Workspace">
-      <ul className="rail-top">
-        <li>
-          <NavLink href="/" icon="home" label="Home" />
-        </li>
-      </ul>
-      {sections.map((s) => (
-        <div className={`rail-sec p-${s.product} ${s.owned ? "" : "unowned"}`} key={s.product}>
-          <p className="rail-h">
-            <i aria-hidden="true" />
-            <span>{s.name}</span>
-          </p>
-          <ul>
-            {s.items.map((i) => (
-              <li key={i.href}>
-                <NavLink href={i.href} icon={i.icon} label={i.label} locked={i.locked} count={i.badge === "flags" ? ws.openFlags : undefined} />
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      <div className="rail-foot">
-        <span>Powered by numarket</span>
-      </div>
-    </nav>
-  );
+  const rail = (mobile: boolean) => <Rail sections={sections} flags={ws.openFlags} settings={canSeeSettings(ctx)} mobile={mobile} />;
 
   return (
     <div className="app" style={brandVars(b?.primary_color ?? "#22577A", b?.accent_color ?? "#38A3A5")}>
@@ -65,7 +38,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <summary aria-label="Menu">
             <Icon name="menu" />
           </summary>
-          {rail}
+          {rail(true)}
         </details>
         <Link href="/" className="brand">
           <span className="logo-chip">{b?.logo_text ?? ctx.tenant.name.slice(0, 2).toUpperCase()}</span>
@@ -76,11 +49,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <i aria-hidden="true" />
           <span className="stamp-text">Data updated</span> {updated}
         </span>
-        {canSeeSettings(ctx) && (
-          <Link href="/admin" className="icon-btn" aria-label="Settings" title="Settings">
-            <Icon name="gear" />
-          </Link>
-        )}
         <details className="menu">
           <summary aria-label="Account menu">
             <span className="avatar">{initials}</span>
@@ -102,7 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 Switch person
               </Link>
             )}
-            <form action={signOut}>
+            <form action="/sign-out" method="post">
               <button type="submit" className="menu-link">
                 Sign out
               </button>
@@ -111,7 +79,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         </details>
       </header>
       <div className="frame">
-        {rail}
+        {rail(false)}
         <main className="content" id="main">
           {children}
         </main>

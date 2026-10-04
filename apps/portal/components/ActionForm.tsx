@@ -1,9 +1,10 @@
 "use client";
 
-import { useActionState, useMemo, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useMemo, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
-export type ActionResult = { ok: boolean; message: string; errors?: Record<string, string> };
+export type ActionResult = { ok: boolean; message: string; errors?: Record<string, string>; redirect?: string };
 type Action = (prev: ActionResult | null, form: FormData) => Promise<ActionResult>;
 
 /* A form bound to a server action, with an inline result message. Field
@@ -20,6 +21,12 @@ export default function ActionForm({
   resetOnSuccess?: boolean;
 }) {
   const [state, formAction] = useActionState(action, null);
+  const router = useRouter();
+  /* actions that lead somewhere return the path; navigating here (rather than
+     redirect() in the action) keeps the next page on this workspace's host */
+  useEffect(() => {
+    if (state?.ok && state.redirect) router.push(state.redirect);
+  }, [state, router]);
   /* a fresh key after each successful submit clears the fields */
   const formKey = useMemo(() => (resetOnSuccess && state?.ok ? Math.random().toString(36).slice(2) : "form"), [state, resetOnSuccess]);
   return (

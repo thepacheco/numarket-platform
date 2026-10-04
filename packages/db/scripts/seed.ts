@@ -5,7 +5,7 @@
    - ops@numarket.us: a Platform Admin for local dev sign-in (not production). */
 import { fileURLToPath } from "node:url";
 import { closePool, withProvisioner } from "../src/client";
-import { ACME_SPEC, DEMO_SPEC, provisionSampleTenant } from "../src/provision";
+import { ACME_SPEC, DEMO_SPEC, provisionSampleTenant, resetDemoTenant } from "../src/provision";
 
 export async function seed(log = console.log) {
   const prod = process.env.NODE_ENV === "production";
@@ -15,10 +15,13 @@ export async function seed(log = console.log) {
     await provisionSampleTenant(DEMO_SPEC(demoHosts));
     log(`demo workspace ready on ${demoHosts.join(", ")}`);
   } else {
-    await withProvisioner(async (db) => {
+    const id = await withProvisioner(async (db) => {
       for (const h of demoHosts) await db.query("insert into tenant_hosts (host, tenant_id) select $1, id from tenants where slug = 'demo' on conflict (host) do nothing", [h]);
+      return (await db.query<{ id: string }>("select id from tenants where slug = 'demo'")).rows[0].id;
     });
-    log("demo workspace already exists (hosts checked)");
+    /* each deploy brings the shared demo up to date with the sample content */
+    await resetDemoTenant(id);
+    log("demo workspace refreshed (hosts checked)");
   }
   if (!prod || process.env.SEED_TEST_TENANT === "1") {
     await provisionSampleTenant(ACME_SPEC([]));
