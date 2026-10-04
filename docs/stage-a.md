@@ -32,6 +32,22 @@ parts of Phase 1 (tenant admin) a demo needs.
 - Building-block library (KPI, trend, bar, table, filter) rendered on the
   server from snapshots. Hover any number for its business definition.
 
+**Revision, October 4 (after Brandon's walkthrough)**
+- Navigation follows the products: Foundation, Workspace, Insight Review,
+  Engineering. Products not in the plan stay visible, grayed out. Admin pages
+  moved into one Settings area.
+- Dashboards have pages and filters: Financial overview (Overview, P&L,
+  Receivables, Payables) and Projects (Portfolio, Change orders, RFIs, Field
+  hours), with period presets, custom ranges, prior-period comparison, and a
+  job filter. New blocks: column charts, aging bars, P&L statement, grouped
+  tables with totals.
+- Home is each person's own page: they pick key numbers, charts, and panels.
+- Reports download as a designed PDF (not a printed web page).
+- Flags no longer assign work or hold comments: the Portal records answers,
+  it is not a messaging or task tool.
+- Insight Review pages show the analyst's monthly review, computed from the
+  same published data as the dashboards.
+
 **Demo workspace (Summit Builders, fictional construction company)**
 - One-click sign-in as four people: Owner, Project manager (Route 9 Bridge
   only), Superintendent (contributor), CFO (viewer).

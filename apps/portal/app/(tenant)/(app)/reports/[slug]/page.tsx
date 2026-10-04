@@ -5,7 +5,7 @@ import { withTenant } from "@numarket/db";
 import { snapshotVersion } from "@numarket/db/repo/snapshots";
 import { getReport, reportVersions } from "@numarket/db/repo/workspace";
 import ActionForm, { Submit } from "@/components/ActionForm";
-import PrintButton from "@/components/PrintButton";
+import Icon from "@/components/Icon";
 import ReportDocument from "@/components/ReportDocument";
 import { ago, fmtDateTime, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
@@ -48,17 +48,20 @@ export default async function ReportPage({ params, searchParams }: { params: Pro
               {wantDraft ? "See the published version" : "See the draft"}
             </Link>
           )}
-          <PrintButton />
+          <a className="btn btn-primary" href={`/reports/${slug}/pdf${chosen ? `?v=${chosen.version}` : ""}`}>
+            <Icon name="pdf" /> Download PDF
+          </a>
         </div>
       </div>
 
-      <div className="grid-2" style={{ gridTemplateColumns: ctx.can("report.edit") ? "minmax(0, 1.6fr) minmax(0, 1fr)" : "1fr", alignItems: "start" }}>
+      <div className={`report-layout ${ctx.can("report.edit") ? "" : "solo"}`}>
         <div>
           {snap ? (
             <ReportDocument
               layout={report.layout}
               commentary={commentary}
               datasets={snap.datasets}
+              publishedAt={snap.published_at}
               ctx={ctx}
               defs={ws.defs}
               brand={{ name: b?.display_name ?? ctx.tenant.name, logo: b?.logo_text ?? "", footer: b?.report_footer ?? null }}

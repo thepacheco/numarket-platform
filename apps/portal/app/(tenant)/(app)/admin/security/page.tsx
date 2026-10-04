@@ -22,7 +22,6 @@ export default async function Security() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Security</h1>
           <p>How people sign in, from where, and for how long. Checked on every request.</p>
         </div>

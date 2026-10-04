@@ -31,7 +31,6 @@ export default async function Audit({ searchParams }: { searchParams: Promise<{ 
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Audit log</h1>
           <p>Who signed in, who changed what, and every time numarket staff looked at your workspace. Nothing here can be edited or deleted.</p>
         </div>

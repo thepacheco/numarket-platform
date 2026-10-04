@@ -8,7 +8,7 @@ import { withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
 import { getPolicy, updateBranding, updateMember, updatePolicy } from "@numarket/db/repo/admin";
 import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllowed } from "@numarket/db/repo/snapshots";
-import { assignFlag, commentFlag, deletePendingEntry, getFlag, getReport, getScreen, insertEntry, publishReport, resolveFlag, saveDraft, suggestDefinition, validateEntry } from "@numarket/db/repo/workspace";
+import { deletePendingEntry, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, validateEntry } from "@numarket/db/repo/workspace";
 import { updateNowLimit } from "@numarket/metering";
 import { parseHex } from "@numarket/ui";
 import { ActionError, assertNotDemo, tenantOrThrow } from "@/lib/guard";
@@ -150,22 +150,11 @@ export async function flagAction(_: ActionResult | null, form: FormData): Promis
         await resolveFlag(db, id, "correct", "Marked as correct", ctx.user.id);
       } else if (intent === "reopen") {
         await resolveFlag(db, id, "open", null, ctx.user.id);
-      } else if (intent === "comment") {
-        const body = str(form, "body");
-        if (!body || body.length > 1000) throw new ActionError("Write a comment of up to 1,000 characters.");
-        await commentFlag(db, id, body, ctx.user.id);
-      } else if (intent === "assign") {
-        const to = str(form, "assignee");
-        if (to) {
-          const m = await db.query("select 1 from memberships where user_id = $1 and status = 'active'", [to]);
-          if (!m.rowCount) throw new ActionError("Pick someone in this workspace.");
-        }
-        await assignFlag(db, id, to || null);
       } else throw new ActionError("Unknown action.");
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: `flag.${intent}`, target: flag.title.slice(0, 120), ip: meta.ip });
       revalidatePath("/flags");
       revalidatePath("/", "layout");
-      return { ok: true, message: intent === "comment" ? "Comment added." : intent === "assign" ? "Assignment updated." : intent === "reopen" ? "Reopened." : "Settled. Thanks." };
+      return { ok: true, message: intent === "reopen" ? "Reopened." : "Settled. The answer is recorded with the data." };
     }, { userId: ctx.user.id });
   });
 }
@@ -186,6 +175,31 @@ export async function suggestDefinitionChange(_: ActionResult | null, form: Form
       revalidatePath("/definitions");
       return { ok: true, message: "Sent to your numarket analyst." };
     }, { userId: ctx.user.id });
+  });
+}
+
+/* ---------- Home (each person's own) ---------- */
+
+export async function saveHome(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx } = await tenantOrThrow("definitions.view");
+    const { catalog, cleanLayout } = await import("@/lib/home");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const cat = catalog(await listDashboards(db), ctx);
+      const layout = cleanLayout({ kpis: form.getAll("kpi").map(String), charts: form.getAll("chart").map(String), panels: form.getAll("panel").map(String) }, ctx, cat);
+      await saveHomeLayout(db, ctx.user.id, layout);
+      revalidatePath("/");
+      return { ok: true, message: "Saved. Your Home page is updated." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+export async function resetHome(_: ActionResult | null): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx } = await tenantOrThrow("definitions.view");
+    await withTenant(ctx.tenant.id, (db) => saveHomeLayout(db, ctx.user.id, null), { userId: ctx.user.id });
+    revalidatePath("/");
+    return { ok: true, message: "Back to the default for your role." };
   });
 }
 

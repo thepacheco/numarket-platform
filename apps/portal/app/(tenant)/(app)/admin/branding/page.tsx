@@ -16,7 +16,6 @@ export default async function Branding() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Branding</h1>
           <p>Your name, colors, and report footer across the Portal, reports, and emails.</p>
         </div>

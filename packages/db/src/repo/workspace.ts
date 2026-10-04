@@ -105,6 +105,8 @@ export type ReportRow = { slug: string; title: string; description: string; layo
 export type ReportLayout = {
   prepared_for?: string | null;
   job?: string | null;
+  /* the reporting cadence shown on the cover, e.g. "week" */
+  period?: string;
   sections: ({ type: "kpis"; blocks: unknown[] } | { type: "commentary"; key: string; title: string; placeholder?: string } | { type: "block"; block: unknown })[];
 };
 export async function listReports(db: Db) {
@@ -149,20 +151,19 @@ export async function publishReport(db: Db, slug: string, commentary: Record<str
   return version;
 }
 
-/* ---------- flags ---------- */
+/* ---------- flags ----------
+   A flag records what the data says and how it was settled. The Portal is
+   not a task or messaging tool: no assignments, no comment threads. */
 export type FlagRow = {
   id: string; title: string; detail: string; source: string; job: string | null; severity: string; question: string | null; options: string[] | null;
-  status: string; resolution: string | null; resolved_at: Date | null; resolved_by_name: string | null; assigned_to: string | null; assigned_name: string | null; created_at: Date;
-  comments: { by: string | null; body: string; at: string }[];
+  status: string; resolution: string | null; resolved_at: Date | null; resolved_by_name: string | null; created_at: Date;
 };
 export async function listFlags(db: Db) {
   return (
     await db.query<FlagRow>(
       `select f.id, f.title, f.detail, f.source, f.job, f.severity, f.question, f.options, f.status, f.resolution, f.resolved_at,
-              rb.name as resolved_by_name, f.assigned_to, au.name as assigned_name, f.created_at,
-              coalesce((select json_agg(json_build_object('by', cu.name, 'body', c.body, 'at', c.at) order by c.at)
-                        from flag_comments c left join users cu on cu.id = c.user_id where c.flag_id = f.id), '[]') as comments
-       from flags f left join users rb on rb.id = f.resolved_by left join users au on au.id = f.assigned_to
+              rb.name as resolved_by_name, f.created_at
+       from flags f left join users rb on rb.id = f.resolved_by
        order by case f.status when 'open' then 0 else 1 end, case f.severity when 'urgent' then 0 when 'review' then 1 else 2 end, f.created_at desc`,
     )
   ).rows;
@@ -177,11 +178,38 @@ export async function resolveFlag(db: Db, id: string, status: "resolved" | "corr
     [id, status, resolution, userId],
   );
 }
-export async function assignFlag(db: Db, id: string, assignee: string | null) {
-  await db.query("update flags set assigned_to = $2 where id = $1", [id, assignee]);
+
+/* ---------- Insight Review ---------- */
+export type ReviewContent = {
+  summary: string;
+  changed: { metric: string; value: string; change: string; note: string }[];
+  risks: { title: string; detail: string }[];
+  recommendations: { title: string; detail: string; owner: string; due: string }[];
+  usage: { rows: string; allowance: string; note: string };
+  next: string;
+};
+export type ReviewRow = { id: string; period: string; title: string; analyst: string; published_at: Date; content: ReviewContent };
+export async function listReviews(db: Db) {
+  return (await db.query<ReviewRow>("select id, period, title, analyst, published_at, content from reviews order by period desc")).rows;
 }
-export async function commentFlag(db: Db, id: string, body: string, userId: string) {
-  await db.query("insert into flag_comments (tenant_id, flag_id, user_id, body) values (current_tenant(), $1, $2, $3)", [id, userId, body]);
+export async function getReview(db: Db, id: string) {
+  const ok = /^[0-9a-f-]{36}$/i.test(id);
+  return ok ? ((await db.query<ReviewRow>("select id, period, title, analyst, published_at, content from reviews where id = $1", [id])).rows[0] ?? null) : null;
+}
+
+/* ---------- Home layout (per person) ---------- */
+export type HomeLayout = { kpis: string[]; charts: string[]; panels: string[] };
+export async function getHomeLayout(db: Db, userId: string) {
+  return (await db.query<{ layout: HomeLayout }>("select layout from home_layouts where user_id = $1", [userId])).rows[0]?.layout ?? null;
+}
+export async function saveHomeLayout(db: Db, userId: string, layout: HomeLayout | null) {
+  if (!layout) await db.query("delete from home_layouts where user_id = $1", [userId]);
+  else
+    await db.query(
+      `insert into home_layouts (tenant_id, user_id, layout) values (current_tenant(), $1, $2)
+       on conflict (tenant_id, user_id) do update set layout = excluded.layout, updated_at = now()`,
+      [userId, JSON.stringify(layout)],
+    );
 }
 
 /* ---------- sources and data health ---------- */

@@ -20,7 +20,6 @@ export default async function Roles() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Roles</h1>
           <p>Every person has one role. Custom roles are available on the Operate and Command plans.</p>
         </div>

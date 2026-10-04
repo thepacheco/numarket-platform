@@ -23,7 +23,6 @@ export default async function Users() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Users</h1>
           <p>Who can sign in, what they can do (role), and which jobs they see (scope).</p>
         </div>

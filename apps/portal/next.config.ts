@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const config: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@numarket/auth", "@numarket/blocks", "@numarket/db", "@numarket/metering", "@numarket/ui"],
-  serverExternalPackages: ["pg"],
+  serverExternalPackages: ["pg", "@react-pdf/renderer"],
   async headers() {
     return [
       {

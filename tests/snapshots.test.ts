@@ -42,7 +42,7 @@ describe("publishing", () => {
 
   it("KPIs follow the user's scope", async () => {
     const snap = (await withTenant(demo.id, latestSnapshot))!;
-    const block: KpiBlock = { type: "kpi", title: "Open RFIs", dataset: "job_summary", value: { agg: "sum", field: "open_rfis" }, format: "num" };
+    const block: KpiBlock = { type: "kpi", title: "Open RFIs", dataset: "job_summary", value: { agg: "sum", of: "open_rfis" }, format: "num" };
     const all = kpiData(block, visibleRows(snap.datasets, "job_summary", null)).value!;
     const pm = kpiData(block, visibleRows(snap.datasets, "job_summary", { dimension: "job", values: ["114"] })).value!;
     expect(pm).toBe(21);

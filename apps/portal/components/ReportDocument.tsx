@@ -1,19 +1,19 @@
-import { visibleRows, type Block, type Datasets, type KpiBlock } from "@numarket/blocks";
-import { BlockView, type Defs } from "@numarket/blocks/react";
+import { resolveRange, type Block, type Datasets, type KpiBlock } from "@numarket/blocks";
+import { BlockView, type BlockContext, type Defs } from "@numarket/blocks/react";
 import type { TenantContext } from "@numarket/auth";
 import type { ReportLayout } from "@numarket/db/repo/workspace";
+import { asOfMonth } from "./Dashboard";
 
 /* A status report in the client's format (Spec §12.3): numbers fill in from a
    published snapshot, commentary is written by people. "Prepared for"
    reports carry the client's customer's name for reports they send on. */
 export default function ReportDocument({
-  layout, commentary, datasets, ctx, defs, brand, title, meta,
+  layout, commentary, datasets, publishedAt, ctx, defs, brand, title, meta,
 }: {
-  layout: ReportLayout; commentary: Record<string, string>; datasets: Datasets; ctx: TenantContext; defs: Defs;
+  layout: ReportLayout; commentary: Record<string, string>; datasets: Datasets; publishedAt: Date | string; ctx: TenantContext; defs: Defs;
   brand: { name: string; logo: string; footer: string | null }; title: string; meta: string;
 }) {
-  const filters = layout.job ? { job: layout.job } : {};
-  const rows = (b: Block) => visibleRows(datasets, b.dataset, ctx.scope, filters);
+  const c: BlockContext = { datasets, scope: ctx.scope, eq: { job: layout.job ?? undefined }, range: resolveRange(asOfMonth(publishedAt, ctx.tenant.timezone), "12m"), defs };
   return (
     <article className="report-doc" aria-label={title}>
       <header className="report-head">
@@ -30,9 +30,9 @@ export default function ReportDocument({
           if (s.type === "kpis") {
             const blocks = s.blocks as KpiBlock[];
             return (
-              <div className="dash-row kpis" key={i} style={{ ["--cols" as string]: Math.min(4, blocks.length) }}>
+              <div className="dash-row kpis" key={i}>
                 {blocks.map((b, j) => (
-                  <BlockView key={j} block={b} rows={rows(b)} defs={defs} />
+                  <BlockView key={j} block={b} c={c} />
                 ))}
               </div>
             );
@@ -48,7 +48,7 @@ export default function ReportDocument({
           const b = s.block as Block;
           return (
             <div className="dash-row" key={i} style={{ ["--cols" as string]: 1 }}>
-              <BlockView block={{ ...b, span: 1 }} rows={rows(b)} defs={defs} />
+              <BlockView block={{ ...b, span: 1 }} c={c} />
             </div>
           );
         })}

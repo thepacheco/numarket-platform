@@ -1,5 +1,6 @@
 import { withProvisioner, type Db } from "./client";
-import { CHECKS, DASHBOARDS, DEFINITIONS, DEMO_OTHER_MEMBERS, DEMO_PERSONAS, FLAGS, REPORTS, SCREENS, SOURCES } from "./demo/config";
+import { buildReviews, CHECKS, DASHBOARDS, DEFINITIONS, DEMO_OTHER_MEMBERS, DEMO_PERSONAS, FLAGS, REPORTS, SCREENS, SOURCES } from "./demo/config";
+import { latestSnapshot } from "./repo/snapshots";
 import { publishSimulated } from "./repo/snapshots";
 
 /* Provisioning of sample workspaces (the demo tenant, and the "acme" test
@@ -93,12 +94,19 @@ export async function provisionSampleTenant(spec: SampleTenantSpec): Promise<str
     { tenantId },
   );
 
-  await withProvisioner((db) => publishSimulated(db, { id: tenantId, slug: spec.slug, isDemo: spec.isDemo }, "reset", null), { tenantId });
+  await withProvisioner(async (db) => {
+    await publishSimulated(db, { id: tenantId, slug: spec.slug, isDemo: spec.isDemo }, "reset", null);
+    await seedReviews(db, tenantId);
+  }, { tenantId });
   return tenantId;
 }
 
 /* Workspace content: configuration plus sample flags, sources, and checks. */
 async function seedContent(db: Db, tenantId: string) {
+  /* configuration that is no longer in the sample set is removed */
+  await db.query("delete from dashboards where not (slug = any($1))", [DASHBOARDS.map((d) => d.slug)]);
+  await db.query("delete from reports where not (slug = any($1))", [REPORTS.map((r) => r.slug)]);
+  await db.query("delete from input_screens where not (slug = any($1))", [SCREENS.map((x) => x.slug)]);
   let i = 0;
   for (const d of DASHBOARDS) {
     await db.query(
@@ -155,6 +163,19 @@ async function seedContent(db: Db, tenantId: string) {
   }
 }
 
+/* The analyst's reviews, written against the data just published. */
+async function seedReviews(db: Db, tenantId: string) {
+  const snap = await latestSnapshot(db);
+  if (!snap) return;
+  await db.query("delete from reviews");
+  const asOf = new Date(snap.published_at);
+  for (const r of buildReviews(snap.datasets, asOf)) {
+    /* published a few days after the month closes, never in the future */
+    const published = new Date(Math.min(Date.now() - 3600_000, new Date(`${r.period}-01T14:00:00Z`).getTime() + 33 * 86_400_000));
+    await db.query("insert into reviews (tenant_id, period, title, analyst, published_at, content) values ($1, $2, $3, $4, $5, $6)", [tenantId, r.period, r.title, r.analyst, published, JSON.stringify(r.content)]);
+  }
+}
+
 /* Nightly (and on demand from the ops console): put the demo workspace back
    to its starting state. Only ever runs on tenants flagged is_demo. */
 export async function resetDemoTenant(tenantId: string) {
@@ -162,13 +183,14 @@ export async function resetDemoTenant(tenantId: string) {
     async (db) => {
       const t = await db.query<{ slug: string; is_demo: boolean }>("select slug, is_demo from tenants where id = $1", [tenantId]);
       if (!t.rows[0]?.is_demo) throw new Error("resetDemoTenant: not a demo tenant");
-      for (const table of ["input_entries", "report_versions", "flag_comments", "definition_suggestions", "snapshots", "refresh_runs", "audit_log"]) {
+      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "snapshots", "refresh_runs", "audit_log"]) {
         await db.query(`delete from ${table}`);
       }
       await db.query("update branding set primary_color = '#22577A', accent_color = '#38A3A5', display_name = (select name from tenants where id = $1)", [tenantId]);
       await db.query("update security_policies set allowed_methods = '{demo}', require_mfa = true, ip_allowlist = '{}', allowed_email_domains = '{}', session_hours = 12, idle_minutes = 60, require_approval = false");
       await seedContent(db, tenantId);
       await publishSimulated(db, { id: tenantId, slug: t.rows[0].slug, isDemo: true }, "reset", null);
+      await seedReviews(db, tenantId);
     },
     { tenantId },
   );

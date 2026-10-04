@@ -24,7 +24,6 @@ export default async function Usage() {
     <>
       <div className="page-head">
         <div>
-          <p className="eyebrow">Admin</p>
           <h1>Usage &amp; plan</h1>
           <p>
             {lim.name} plan ({lim.size}): {ctx.tenant.products.map((p) => PRODUCT[p] ?? p).join(", ")}.

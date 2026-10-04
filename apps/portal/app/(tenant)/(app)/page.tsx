@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { DashboardLayout } from "@numarket/blocks";
+import { resolveRange } from "@numarket/blocks";
+import { BlockView, type BlockContext } from "@numarket/blocks/react";
 import { withTenant } from "@numarket/db";
-import { getDashboard, listEntries, listFlags, listReports, listSources } from "@numarket/db/repo/workspace";
-import { DashboardView } from "@/components/Dashboard";
+import { getHomeLayout, listDashboards, listEntries, listFlags, listReports, listReviews, listSources } from "@numarket/db/repo/workspace";
+import { asOfMonth } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
 import { ago, fmtDateTime, fmtTime, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 
 export const metadata: Metadata = { title: "Home" };
 
-/* Role-based landing (Spec §12.3): key numbers, what needs attention, your
-   entries, and how fresh the data is. */
+/* Each person's own landing page: the key numbers and charts they chose,
+   plus panels for flags, their entries, data freshness, reports, and the
+   latest Insight Review. */
 export default async function Home() {
   const ctx = await requireTenant();
   const ws = await workspace(ctx);
@@ -22,18 +25,27 @@ export default async function Home() {
   const data = await withTenant(
     ctx.tenant.id,
     async (db) => ({
-      portfolio: ctx.can("dashboard.view") ? await getDashboard(db, "portfolio") : null,
+      dashboards: await listDashboards(db),
+      saved: await getHomeLayout(db, ctx.user.id),
       flags: ctx.can("flags.view") ? (await listFlags(db)).filter((f) => f.status === "open" && (!ctx.scope || !f.job || ctx.scope.values.includes(f.job))) : [],
       mine: ctx.can("input.submit") ? await listEntries(db, { userId: ctx.user.id, limit: 5 }) : [],
       sources: ctx.can("sources.view") ? await listSources(db) : [],
       reports: ctx.can("report.view") ? (await listReports(db)).filter((r) => reportVisible(r.layout, ctx)) : [],
+      reviews: ctx.can("actions.view") && ctx.tenant.products.includes("insight") ? await listReviews(db) : [],
     }),
     { userId: ctx.user.id },
   );
-  const firstRow = (data.portfolio?.layout as DashboardLayout | undefined)?.rows[0];
+  const cat = catalog(data.dashboards, ctx);
+  const layout = data.saved ? cleanLayout(data.saved, ctx, cat) : defaultLayout(ctx, cat);
+  const kpis = layout.kpis.map((id) => cat.kpis.find((w) => w.id === id)!).filter(Boolean);
+  const charts = layout.charts.map((id) => cat.charts.find((w) => w.id === id)!).filter(Boolean);
+  const has = (p: string) => layout.panels.includes(p);
+
   const updated = ws.snapshot ? fmtDateTime(ws.snapshot.published_at, tz) : "";
+  const range = resolveRange(asOfMonth(ws.snapshot?.published_at, tz), "12m");
+  const c: BlockContext = { datasets: ws.snapshot?.datasets ?? {}, scope: ctx.scope, eq: {}, range, defs: ws.defs, updated };
   const unhealthy = data.sources.filter((s) => s.status !== "healthy");
-  const contributorOnly = !ctx.can("dashboard.view") && ctx.can("input.submit");
+  const review = data.reviews[0];
 
   return (
     <>
@@ -43,16 +55,16 @@ export default async function Home() {
           <h1>
             {greet}, {ctx.user.name.split(" ")[0]}.
           </h1>
-          <p>{ctx.scope ? "Here's what's happening on your jobs." : "Here's what's happening across the company."}</p>
+          <p>
+            {ctx.scope ? "Your jobs at a glance." : "The company at a glance."} {kpis.length > 0 && <span className="muted">Numbers cover {range.label} unless noted.</span>}
+          </p>
         </div>
-        {ctx.can("dashboard.view") && (
-          <Link href="/dashboards/portfolio" className="btn btn-secondary">
-            Open the portfolio <Icon name="arrow" />
-          </Link>
-        )}
+        <Link href="/home/customize" className="btn btn-secondary btn-sm">
+          <Icon name="grid" /> Customize
+        </Link>
       </div>
 
-      {contributorOnly && (
+      {!ctx.can("dashboard.view") && ctx.can("input.submit") && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h2>Today&apos;s field report</h2>
           <p className="muted">Fill it in from the job site. It takes about a minute.</p>
@@ -62,40 +74,75 @@ export default async function Home() {
         </div>
       )}
 
-      {firstRow && ws.snapshot && (
-        <div style={{ marginBottom: 16 }}>
-          <DashboardView layout={{ rows: [firstRow] }} datasets={ws.snapshot.datasets} ctx={ctx} filters={{}} defs={ws.defs} updated={updated} showFilters={false} />
+      {kpis.length > 0 && ws.snapshot && (
+        <div className="dash-row kpis" style={{ ["--cols" as string]: Math.min(4, kpis.length), marginBottom: 16 }}>
+          {kpis.map((w) => (
+            <BlockView key={w.id} block={{ ...w.block, span: 1 }} c={c} />
+          ))}
         </div>
       )}
 
-      <div className="grid-3">
-        {ctx.can("flags.view") && (
+      {charts.length > 0 && ws.snapshot && (
+        <div className="dash-row" style={{ ["--cols" as string]: charts.length === 1 ? 1 : 2, marginBottom: 16 }}>
+          {charts.map((w) => (
+            <BlockView key={w.id} block={{ ...w.block, span: 1 }} c={c} />
+          ))}
+        </div>
+      )}
+
+      <div className="home-grid">
+        {has("review") && review && (
+          <section className="card home-wide">
+            <div className="panel-h">
+              <h2>
+                Latest Insight Review · {review.title.replace(/ review$/, "")}
+              </h2>
+              <Link href={`/reviews/${review.id}`}>Read it</Link>
+            </div>
+            <p style={{ margin: "0 0 10px" }}>{review.content.summary}</p>
+            <ul className="list small">
+              {review.content.recommendations.slice(0, 3).map((r) => (
+                <li key={r.title} className="row" style={{ justifyContent: "space-between" }}>
+                  <span>{r.title}</span>
+                  <span className="muted">
+                    {r.owner} · {r.due}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {has("attention") && (
           <section className="card">
-            <h2>Needs attention</h2>
+            <div className="panel-h">
+              <h2>Data that needs attention</h2>
+              <Link href="/flags">All flags</Link>
+            </div>
             {data.flags.length ? (
-              <ul className="list">
-                {data.flags.slice(0, 3).map((f) => (
-                  <li key={f.id} className="small">
+              <ul className="list small">
+                {data.flags.slice(0, 4).map((f) => (
+                  <li key={f.id}>
                     <span className={`pill ${f.severity}`}>{f.severity === "urgent" ? "Urgent" : f.severity === "info" ? "FYI" : "Review"}</span> {f.title}
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="muted small">Nothing waiting on you.</p>
+              <p className="muted small">Nothing waiting.</p>
             )}
-            <p style={{ margin: "12px 0 0" }}>
-              <Link href="/flags">See all flags</Link>
-            </p>
           </section>
         )}
 
-        {ctx.can("input.submit") && (
+        {has("entries") && (
           <section className="card">
-            <h2>Your entries</h2>
+            <div className="panel-h">
+              <h2>Your entries</h2>
+              <Link href="/inputs">Input screens</Link>
+            </div>
             {data.mine.length ? (
-              <ul className="list">
+              <ul className="list small">
                 {data.mine.map((e) => (
-                  <li key={e.id} className="small row" style={{ justifyContent: "space-between" }}>
+                  <li key={e.id} className="row" style={{ justifyContent: "space-between" }}>
                     <span>
                       {e.screen_slug === "daily-field-report" ? "Field report" : "Change order"} · {ago(e.created_at)}
                     </span>
@@ -106,51 +153,49 @@ export default async function Home() {
             ) : (
               <p className="muted small">You haven&apos;t entered anything yet.</p>
             )}
-            <p style={{ margin: "12px 0 0" }}>
-              <Link href="/inputs">Go to input screens</Link>
-            </p>
           </section>
         )}
 
-        <section className="card">
-          <h2>Your data</h2>
-          <dl className="kv">
-            <dt>Last update</dt>
-            <dd>{updated || "Not yet"}</dd>
-            <dt>Next update</dt>
-            <dd>{fmtTime(ws.nextUpdate, tz)}</dd>
-            <dt>Waiting</dt>
-            <dd>{ws.pending ? `${ws.pending} new ${ws.pending === 1 ? "entry" : "entries"}` : "Nothing"}</dd>
-            {ctx.can("sources.view") && (
-              <>
-                <dt>Sources</dt>
-                <dd>{unhealthy.length ? <span className="pill reconnect">{unhealthy.length} need attention</span> : <span className="pill healthy">All healthy</span>}</dd>
-              </>
-            )}
-          </dl>
-          {ctx.can("sources.view") && (
-            <p style={{ margin: "12px 0 0" }}>
-              <Link href="/sources">See sources</Link>
-            </p>
-          )}
-        </section>
-      </div>
+        {has("freshness") && (
+          <section className="card">
+            <div className="panel-h">
+              <h2>Your data</h2>
+              {ctx.can("sources.view") && <Link href="/sources">Sources</Link>}
+            </div>
+            <dl className="kv small">
+              <dt>Last update</dt>
+              <dd>{updated || "Not yet"}</dd>
+              <dt>Next update</dt>
+              <dd>{fmtTime(ws.nextUpdate, tz)}</dd>
+              <dt>Waiting</dt>
+              <dd>{ws.pending ? `${ws.pending} new ${ws.pending === 1 ? "entry" : "entries"}` : "Nothing"}</dd>
+              {ctx.can("sources.view") && (
+                <>
+                  <dt>Sources</dt>
+                  <dd>{unhealthy.length ? <span className="pill reconnect">{unhealthy.length} need attention</span> : <span className="pill healthy">All healthy</span>}</dd>
+                </>
+              )}
+            </dl>
+          </section>
+        )}
 
-      {data.reports.length > 0 && (
-        <section style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 16, margin: "0 0 10px" }}>Reports</h2>
-          <div className="grid-2">
-            {data.reports.map((r) => (
-              <Link key={r.slug} href={`/reports/${r.slug}`} className="item">
-                <h3>{r.title}</h3>
-                <p className="small muted" style={{ margin: "4px 0 0" }}>
-                  {r.latest_version ? `Version ${r.latest_version}, published ${ago(r.latest_at!)}` : "Not published yet"}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+        {has("reports") && data.reports.length > 0 && (
+          <section className="card">
+            <div className="panel-h">
+              <h2>Reports</h2>
+              <Link href="/reports">All reports</Link>
+            </div>
+            <ul className="list small">
+              {data.reports.map((r) => (
+                <li key={r.slug}>
+                  <Link href={`/reports/${r.slug}`}>{r.title}</Link>
+                  <div className="muted">{r.latest_version ? `Version ${r.latest_version}, ${ago(r.latest_at!)}` : "Not published yet"}</div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
     </>
   );
 }

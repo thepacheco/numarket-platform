@@ -1,35 +1,49 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { DashboardLayout } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
 import { listDashboards } from "@numarket/db/repo/workspace";
+import Icon from "@/components/Icon";
 import { requireTenant } from "@/lib/guard";
 
 export const metadata: Metadata = { title: "Dashboards" };
 
 export default async function Dashboards() {
   const ctx = await requireTenant("dashboard.view");
-  const list = await withTenant(ctx.tenant.id, listDashboards);
+  const list = (await withTenant(ctx.tenant.id, listDashboards)).filter((d) => !(ctx.scope && (d.layout as DashboardLayout).wholeCompany));
   return (
     <>
       <div className="page-head">
         <div>
           <p className="eyebrow">Workspace</p>
           <h1>Dashboards</h1>
-          <p>They update on their own from your published data. Point at any number to see what it means.</p>
+          <p>Built for your business and kept current by every scheduled update. Point at any number to see what it means.</p>
         </div>
       </div>
-      <ul className="list">
-        {list.map((d) => (
-          <li key={d.slug}>
-            <Link href={`/dashboards/${d.slug}`} className="item">
-              <h3>{d.title}</h3>
-              <p className="muted small" style={{ margin: "4px 0 0" }}>
+      <div className="grid-2">
+        {list.map((d) => {
+          const l = d.layout as DashboardLayout;
+          return (
+            <Link key={d.slug} href={`/dashboards/${d.slug}`} className="item">
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <h3>{d.title}</h3>
+                <Icon name="chart" />
+              </div>
+              <p className="small muted" style={{ margin: "4px 0 10px" }}>
                 {d.description}
               </p>
+              <div className="row" style={{ gap: 6 }}>
+                {l.pages.map((p) => (
+                  <span key={p.slug} className="pill">
+                    {p.title}
+                  </span>
+                ))}
+              </div>
+              {l.source && <p className="dash-source" style={{ margin: "10px 0 0" }}>From {l.source}</p>}
             </Link>
-          </li>
-        ))}
-      </ul>
+          );
+        })}
+      </div>
     </>
   );
 }
