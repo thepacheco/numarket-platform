@@ -1,0 +1,30 @@
+{
+  "name": "numarket-platform",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "numarket Portal: tenant app, tenant admin, and ops console. Private.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @numarket/portal",
+    "build": "npm run build -w @numarket/portal",
+    "typecheck": "tsc -p tsconfig.json --noEmit && npm run typecheck -w @numarket/portal",
+    "test": "vitest run",
+    "db:migrate": "tsx packages/db/scripts/migrate.ts",
+    "db:seed": "tsx packages/db/scripts/seed.ts",
+    "db:reset-demo": "tsx packages/db/scripts/reset-demo.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.4",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.3"
+  }
+}

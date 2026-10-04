@@ -1,0 +1,16 @@
+{
+  "name": "@numarket/blocks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react/index.tsx"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "dependencies": {
+    "@numarket/db": "*"
+  }
+}
