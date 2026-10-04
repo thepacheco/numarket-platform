@@ -7,6 +7,9 @@ import { fileURLToPath } from "node:url";
 import { closePool, withProvisioner } from "../src/client";
 import { ACME_SPEC, DEMO_SPEC, provisionSampleTenant, resetDemoTenant } from "../src/provision";
 
+/* Neon gives a pooled URL for the app and a direct one for schema work. */
+if (process.env.DATABASE_URL_UNPOOLED) process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED;
+
 export async function seed(log = console.log) {
   const prod = process.env.NODE_ENV === "production";
   const demoHosts = (process.env.DEMO_HOSTS ?? "demo.localhost:3100").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);

@@ -122,17 +122,14 @@ production by code, not configuration.
 
 ## Deploying Stage A (app.numarket.us)
 
-1. Vercel: new project from this repo, **Root Directory `apps/portal`**.
-2. Vercel → Storage → add **Neon Postgres** to the project (sets `DATABASE_URL`).
-3. Environment variables (Production): `DEMO_HOSTS=app.numarket.us`,
-   `OPS_HOSTS=ops.numarket.us`, `CRON_SECRET=<random>`. Leave
-   `ALLOW_DEV_SIGNIN` unset.
-4. Domains: add `app.numarket.us` (and `ops.numarket.us` once staff sign-in is
-   live). At IONOS, add a CNAME for `app` (and `ops`) pointing to Vercel.
-   Email on numarket.us is untouched.
-5. The build migrates and seeds the database, so the demo is ready on first
-   deploy. When `numarket.app` is bought, set `APP_DOMAIN=numarket.app`, add
-   the wildcard domain in Vercel, and add a host row for `demo.numarket.app`.
+Step by step in the [README](../README.md#1-deploy-to-appnumarketus-first-time-about-15-minutes).
+Production builds run `apps/portal/scripts/vercel-build.sh`: migrations and
+the demo refresh happen only when `VERCEL_ENV=production`; preview builds
+leave the database alone. Migrations and seeding were checked against a fresh
+Postgres whose owner is not a superuser (as on Neon).
+
+What comes next, and what's needed to sell: [`production-plan.md`](production-plan.md),
+[`selling-checklist.md`](selling-checklist.md).
 
 ## Open decisions carried from the spec
 

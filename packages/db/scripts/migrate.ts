@@ -5,6 +5,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { closePool, pool } from "../src/client";
 
+/* Neon gives a pooled URL for the app and a direct one for schema work. */
+if (process.env.DATABASE_URL_UNPOOLED) process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED;
+
 const dir = join(dirname(fileURLToPath(import.meta.url)), "..", "migrations");
 
 export async function migrate(log = console.log) {
