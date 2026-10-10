@@ -33,15 +33,17 @@ client's real data in until Phases 2–4 and the "before real data" gate are don
 Each phase ends with something working and a check that proves it. Times
 assume Brandon part-time on accounts and decisions, and Claude Code building.
 
-### Phase 0. Demo live (this week, about 1 hour of Brandon's time)
-- [ ] Import the repo into Vercel, add Neon, set `DEMO_HOSTS` and `CRON_SECRET`, deploy (README §1).
+### Phase 0. Website and demo live (this week, about 2 hours of Brandon's time)
+- [ ] **Publish the new website.** As of October 10, numarket.us still serves the April single-page site from `numarket-technologies/website`; the new site in `thepacheco/numarket-website` has never been deployed. Steps: `docs/operations/README.md` §2-A.
+- [ ] Import the Portal repo into Vercel, add Neon, set `DEMO_HOSTS` and `CRON_SECRET`, deploy (README §1).
 - [ ] Add `app.numarket.us` in Vercel; add the CNAME at IONOS.
 - [ ] **Move the Vercel team to Pro** before using it for sales (the free Hobby plan is for non-commercial use).
 - [ ] Point the website's "See a live demo" buttons at `https://app.numarket.us/sign-in`.
 - [ ] Free uptime check (e.g. Better Stack or UptimeRobot) on `/sign-in`, alerting your phone.
 
-**Done when:** a stranger can open app.numarket.us on a phone, pick a person,
-and download the weekly report PDF; the nightly reset ran once.
+**Done when:** numarket.us shows the new site with a working Contact form, a
+stranger can open app.numarket.us on a phone, pick a person, and download the
+weekly report PDF, and the nightly reset ran once.
 
 ### Phase 1. Production basics (weeks 1–2)
 - [ ] Sentry for errors (server and browser), with alerts to email.

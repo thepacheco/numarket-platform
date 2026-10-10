@@ -102,31 +102,17 @@ guaranteed (Snowflake confirmation pending).
 
 ---
 
-## Accounts you'll hold (create each under an admin@numarket.us mailbox, with MFA)
+## Accounts
 
-| Account | Needed for | When |
-|---|---|---|
-| GitHub (repos) | Code | Have it |
-| Vercel (Pro) | Hosting the Portal | Now |
-| Neon | Portal database | Now (through Vercel) |
-| IONOS | DNS for numarket.us | Have it |
-| Uptime monitor | Alerts if the demo goes down | Now |
-| Sentry | Error alerts | Phase 1 |
-| WorkOS | Sign-in, MFA, SSO | Phase 2 |
-| Postmark or Resend | Invitations, alerts, report emails | Phase 2 |
-| Microsoft Entra app, Google Cloud project | "Sign in with Microsoft/Google," SharePoint and Drive | Phase 2 |
-| `numarket.app` domain | Client addresses | Phase 2 |
-| AWS | Worker, secrets, fixed IP | Phase 3 |
-| Snowflake organization + Partner Network | Client databases | Phase 3 |
-| Intuit Developer, Procore Developer | Connectors | Phase 3–4 |
-| Stripe | Invoicing | Before the first paid invoice |
-| Password manager (1Password or Bitwarden) | Everything above | Now |
+The full list (now, before the first client, and to scale), with costs, is in
+[`operations/README.md`](operations/README.md#4-accounts). Create each under
+admin@numarket.us, with MFA, saved in the password manager.
 
 ---
 
 ## The short version
 
-1. **This week:** deploy the demo, upgrade Vercel, fix the demo link on the website, write the pilot offer, practice the demo, start calling your own network.
+1. **This week:** publish the new website and the Portal demo (operations README §2), upgrade Vercel, write the pilot offer, practice the demo, start calling your own network.
 2. **Next 30 days:** attorney on the contracts, insurance quotes, Snowflake Partner Network and Intuit applications, real sign-in built.
 3. **Before the pilot's real data:** pipeline for their sources, pen test, restore test, incident runbook.
 4. **After 90 days:** the case study becomes your best sales tool.

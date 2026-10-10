@@ -14,6 +14,7 @@ each client's private data.
 | Status | Stage A: the Portal and the sales demo. Real client data needs Stage B. See [`docs/stage-a.md`](docs/stage-a.md) |
 | The plan to grade A | [`docs/production-plan.md`](docs/production-plan.md) |
 | What's needed to sell | [`docs/selling-checklist.md`](docs/selling-checklist.md) |
+| Running the business (go-live steps, addresses, accounts, SOPs) | [`docs/operations/`](docs/operations/README.md) |
 | Full product spec | [`docs/platform-build-spec.md`](docs/platform-build-spec.md) |
 
 ---
