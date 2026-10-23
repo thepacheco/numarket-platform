@@ -45,3 +45,6 @@ export function seeOther(req: Request, path: string) {
 export function serializeCookie(name: string, value: string, o: { path: string; maxAge: number; secure: boolean }) {
   return [`${name}=${value}`, `Path=${o.path}`, `Max-Age=${o.maxAge}`, "HttpOnly", "SameSite=Lax", o.secure ? "Secure" : ""].filter(Boolean).join("; ");
 }
+
+/** The marketing website, for links out of the demo. */
+export const MARKETING_URL = (process.env.MARKETING_URL ?? "https://numarket.us").replace(/\/$/, "");

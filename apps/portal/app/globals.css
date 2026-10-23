@@ -153,7 +153,12 @@ a {
 .demo-strip a {
   color: #9fe0c4;
   font-weight: 600;
+}
+.demo-links {
   margin-left: auto;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 .appbar {
   position: sticky;

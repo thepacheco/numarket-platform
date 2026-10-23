@@ -5,6 +5,7 @@ import Rail from "@/components/Rail";
 import { requireTenant } from "@/lib/guard";
 import { fmtDateTime, fmtTime, jobsInScope, workspace } from "@/lib/data";
 import { canSeeSettings, navFor, ROLE_LABEL, scopeLabel } from "@/lib/nav";
+import { MARKETING_URL } from "@/lib/request";
 
 /* The tenant app shell. It reads the session only to draw the navigation;
    each page and action still checks access itself (lib/guard.ts). */
@@ -30,7 +31,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="demo-who">
             Viewing as {ctx.user.name} · {ROLE_LABEL[ctx.role]} · {scopeLabel(ctx, jobs)}
           </span>
-          <Link href="/sign-in">Switch person</Link>
+          <span className="demo-links">
+            <a href={`${MARKETING_URL}/contact`}>Book a free Readiness Check</a>
+            <Link href="/sign-in">Switch person</Link>
+          </span>
         </div>
       )}
       <header className="appbar">

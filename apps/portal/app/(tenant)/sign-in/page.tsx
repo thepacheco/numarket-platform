@@ -7,6 +7,7 @@ import { latestSnapshot } from "@numarket/db/repo/snapshots";
 import { brandVars } from "@numarket/ui";
 import { tenantForRequest } from "@/lib/guard";
 import { ROLE_LABEL } from "@/lib/nav";
+import { MARKETING_URL } from "@/lib/request";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -86,7 +87,14 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
             </button>
           </form>
         )}
-        <p className="small muted" style={{ marginTop: 20 }}>Powered by numarket</p>
+        {tenant.isDemo ? (
+          <p className="small muted" style={{ marginTop: 20 }}>
+            A fictional company with sample data; it resets every night. Want this on your own numbers?{" "}
+            <a href={`${MARKETING_URL}/contact`}>Book a free Readiness Check</a> · <a href={MARKETING_URL}>numarket.us</a>
+          </p>
+        ) : (
+          <p className="small muted" style={{ marginTop: 20 }}>Powered by numarket</p>
+        )}
       </div>
     </main>
   );
