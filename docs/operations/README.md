@@ -2,6 +2,9 @@
 
 **As of October 10, 2026.** Owner: Brandon. Internal. Don't share outside numarket.
 
+**Just back, or starting fresh? Open [`50-day-plan.md`](50-day-plan.md) first:** today's
+checklist and the week-by-week path to the first client.
+
 This is the one page for running the business: what to switch on, where
 everything lives, which accounts you need, and the weekly rhythm. The
 step-by-step procedures are in [`sops.md`](sops.md). The build plan is in
@@ -10,7 +13,7 @@ list are in [`../selling-checklist.md`](../selling-checklist.md).
 
 ---
 
-## 1. Where things stand today (checked October 10)
+## 1. Where things stand today (checked October 10; unchanged on October 23)
 
 | What | Status | What it means |
 |---|---|---|
@@ -19,6 +22,8 @@ list are in [`../selling-checklist.md`](../selling-checklist.md).
 | Lead capture | ✅ The new site's Contact and Support forms send to a Google Sheet (Google Apps Script). Calendly link works. | Only once the new site is live. Today's live site doesn't have them. |
 | Email (hello@numarket.us) | ⚠️ IONOS mail works (MX, DKIM, DMARC set). **No SPF record.** | Sales emails are more likely to land in spam until SPF is added. |
 | LinkedIn | ❌ No company page linked from the site. | `content/site.ts` → `linkedin` is empty. |
+| Security updates | ✅ October 23: both sites on Next.js 16.4.3 (fixes a critical advisory); `npm audit` clean. | Deploy from the latest `main`. |
+| Website ↔ demo | ✅ October 23: website Demos page links to the Portal demo; the demo links back to numarket.us and the Readiness Check. | Works once both are live. |
 
 ---
 
