@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { authProviderStatus, demoPersonas, devSignInEnabled } from "@numarket/auth";
+import { authProviderStatus, demoPersonas, devSignInEnabled, SANDBOX_COOKIE, sandboxCodeOk } from "@numarket/auth";
 import { withTenant } from "@numarket/db";
 import { getBranding } from "@numarket/db/repo/admin";
 import { latestSnapshot } from "@numarket/db/repo/snapshots";
 import { brandVars } from "@numarket/ui";
 import { tenantForRequest } from "@/lib/guard";
 import { ROLE_LABEL } from "@/lib/nav";
-import { MARKETING_URL } from "@/lib/request";
+import { cookieValue, MARKETING_URL } from "@/lib/request";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -30,7 +30,11 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
     const jobs = Object.fromEntries((snap?.datasets.job_summary ?? []).map((r) => [String(r.job), String(r.name)]));
     return { branding: b, jobs };
   });
-  const personas = await demoPersonas(tenant);
+  /* a prospect sandbox shows its people only after the access code */
+  const sandbox = tenant.sandboxUntil;
+  const unlocked = !sandbox || (await sandboxCodeOk(tenant.id, await cookieValue(SANDBOX_COOKIE)));
+  const personas = unlocked ? await demoPersonas(tenant) : [];
+  const until = sandbox?.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: tenant.timezone });
   const provider = authProviderStatus();
 
   return (
@@ -39,14 +43,25 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
         <div className="row" style={{ gap: 12 }}>
           <span className="logo-chip">{branding?.logo_text ?? tenant.name.slice(0, 2)}</span>
           <div>
-            <p className="eyebrow">{tenant.isDemo ? "Demo workspace" : "Sign in"}</p>
+            <p className="eyebrow">{sandbox ? `Private sandbox · open until ${until}` : tenant.isDemo ? "Demo workspace" : "Sign in"}</p>
             <h1 style={{ margin: 0, fontSize: 26, lineHeight: 1.2 }}>{branding?.display_name ?? tenant.name}</h1>
           </div>
         </div>
         {branding?.signin_message && <p className="muted" style={{ marginTop: 14 }}>{branding.signin_message}</p>}
-        {error && <p className="notice risk" style={{ marginTop: 12 }}>That sign-in didn&apos;t work. Please try again.</p>}
+        {error && <p className="notice risk" style={{ marginTop: 12 }}>{error === "code" ? "That code didn't match. Check the email from numarket and try again." : "That sign-in didn't work. Please try again."}</p>}
 
-        {tenant.isDemo ? (
+        {sandbox && !unlocked ? (
+          <form action="/sign-in/sandbox" method="post" className="stack" style={{ marginTop: 18 }}>
+            <label className="field">
+              <span className="label">Access code</span>
+              <input name="code" className="input" required autoComplete="one-time-code" autoCapitalize="characters" spellCheck={false} placeholder="XXXX-XXXX-XXXX" maxLength={20} />
+            </label>
+            <button type="submit" className="btn btn-primary">
+              Open the sandbox
+            </button>
+            <p className="small muted" style={{ margin: 0 }}>The code is in the email from numarket. This browser remembers it until the sandbox closes.</p>
+          </form>
+        ) : tenant.isDemo ? (
           <div className="persona-grid">
             {personas.map((p) => (
               <form action="/sign-in/demo" method="post" key={p.persona}>
@@ -89,7 +104,7 @@ export default async function SignIn({ searchParams }: { searchParams: Promise<{
         )}
         {tenant.isDemo ? (
           <p className="small muted" style={{ marginTop: 20 }}>
-            A fictional company with sample data; it resets every night. Want this on your own numbers?{" "}
+            {sandbox ? `Sample data, with your company's name on it. Your changes stay until ${until}.` : "A fictional company with sample data; it resets every night."} Want this on your own numbers?{" "}
             <a href={`${MARKETING_URL}/contact`}>Book a free Readiness Check</a> · <a href={MARKETING_URL}>numarket.us</a>
           </p>
         ) : (

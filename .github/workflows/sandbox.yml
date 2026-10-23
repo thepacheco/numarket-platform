@@ -1,0 +1,66 @@
+# Prospect sandboxes: GitHub → Actions → "Sandbox" → Run workflow.
+# Needs the repository secret DATABASE_URL (the production Neon connection
+# string) and the repository variable APP_DOMAIN once numarket.app is set up.
+# Results (address and access code) appear on the run's Summary page.
+name: Sandbox
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "What to do"
+        type: choice
+        options: [create, list, extend, delete]
+        default: create
+      company:
+        description: "Prospect's company name (create)"
+        required: false
+      short_name:
+        description: "Short name for the address, e.g. acme (optional for create; needed for extend/delete)"
+        required: false
+      days:
+        description: "Days it stays open, 1–30 (create/extend)"
+        required: false
+        default: "14"
+      logo:
+        description: "2–3 letters for the logo (optional)"
+        required: false
+      color:
+        description: "Brand color like #1F4E79 (optional)"
+        required: false
+      address:
+        description: "Full address if numarket.app isn't set up yet, e.g. acme.numarket.us (optional)"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox
+  cancel-in-progress: false
+
+jobs:
+  sandbox:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run
+        # inputs go through environment variables, never into the shell text
+        env:
+          NODE_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          APP_DOMAIN: ${{ vars.APP_DOMAIN }}
+          SANDBOX_ACTION: ${{ inputs.action }}
+          SANDBOX_COMPANY: ${{ inputs.company }}
+          SANDBOX_SHORT_NAME: ${{ inputs.short_name }}
+          SANDBOX_DAYS: ${{ inputs.days }}
+          SANDBOX_LOGO: ${{ inputs.logo }}
+          SANDBOX_COLOR: ${{ inputs.color }}
+          SANDBOX_ADDRESS: ${{ inputs.address }}
+        run: npm run sandbox

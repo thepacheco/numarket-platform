@@ -26,7 +26,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {ctx.tenant.isDemo && (
         <div className="demo-strip" role="note">
           <span>
-            <b>Demo workspace</b> · fictional sample data, resets nightly
+            {ctx.tenant.sandboxUntil ? (
+              <>
+                <b>Private sandbox for {ctx.tenant.name}</b> · sample data · open until{" "}
+                {ctx.tenant.sandboxUntil.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: ctx.tenant.timezone })}
+              </>
+            ) : (
+              <>
+                <b>Demo workspace</b> · fictional sample data, resets nightly
+              </>
+            )}
           </span>
           <span className="demo-who">
             Viewing as {ctx.user.name} · {ROLE_LABEL[ctx.role]} · {scopeLabel(ctx, jobs)}

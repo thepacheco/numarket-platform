@@ -18,7 +18,8 @@
     "test": "vitest run",
     "db:migrate": "tsx packages/db/scripts/migrate.ts",
     "db:seed": "tsx packages/db/scripts/seed.ts",
-    "db:reset-demo": "tsx packages/db/scripts/reset-demo.ts"
+    "db:reset-demo": "tsx packages/db/scripts/reset-demo.ts",
+    "sandbox": "tsx scripts/sandbox.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.4",

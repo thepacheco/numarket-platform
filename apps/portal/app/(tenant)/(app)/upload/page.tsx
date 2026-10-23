@@ -26,6 +26,7 @@ export default async function UploadPage({ searchParams }: { searchParams: Promi
           <p>For data that lives in spreadsheets or another system&apos;s export. Download a template, fill it in, and upload it. Every row is checked the same way as the input screens.</p>
         </div>
       </div>
+      {ctx.tenant.sandboxUntil && <p className="notice">Uploads are turned off in this sandbox, so real files stay out of it. You can still download the templates and see how the check works in your own workspace.</p>}
       <div className="upload-layout">
         <UploadForm screens={screens.map((s) => ({ slug: s.slug, title: s.title }))} action={uploadFile} maxBytes={MAX_UPLOAD_BYTES} initial={screens.some((s) => s.slug === t) ? t : undefined} />
         <aside className="stack">

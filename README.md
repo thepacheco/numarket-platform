@@ -99,6 +99,38 @@ You should land on Home.
 
 ---
 
+## 1b. Prospect sandboxes (a private, branded copy of the demo per prospect)
+
+A sandbox is the demo with the prospect's company name and color on it, at its
+own address, behind an access code. It keeps their changes until it closes
+(14 days by default, up to 30), then the nightly job deletes it. Settings are
+view-only and uploads are off, so no real files land in it.
+
+**One-time setup**
+1. **Buy `numarket.app` in Vercel** (Domains → Buy), so Vercel runs its DNS.
+   Then in the `numarket-portal` project → Domains, add `numarket.app` and
+   `*.numarket.app`, and add the environment variable `APP_DOMAIN=numarket.app`.
+   Redeploy. Every sandbox (and later every client) gets `name.numarket.app`
+   with no DNS work.
+2. **GitHub** → `numarket-platform` → Settings → Secrets and variables → Actions:
+   - Secret `DATABASE_URL`: the production database's direct connection string
+     (Vercel → Storage → the Neon database → `DATABASE_URL_UNPOOLED`).
+   - Variable `APP_DOMAIN`: `numarket.app`.
+3. Set `CRON_SECRET` (§1 Step 3) so expired sandboxes are deleted nightly.
+   (They stop opening the moment they expire either way.)
+
+**Each time:** GitHub → Actions → **Sandbox** → Run workflow → `create`, the
+company name, Run. Open the finished run: its Summary shows the address, the
+access code, and an email to send. Other actions: `list` (who signed in, how
+much they entered), `extend` (more days and a new code), `delete`.
+
+Before `numarket.app` exists, fill in the `address` field instead (for example
+`acme.numarket.us`), then add `CNAME acme → cname.vercel-dns.com` at IONOS and
+add the address in the project's Domains.
+
+Locally: `npm run sandbox -- create --company "Acme Builders"` (with
+`APP_DOMAIN=localhost:3100`, it opens at `http://acme-builders.localhost:3100`).
+
 ## 2. Day-to-day operations
 
 | Task | How |

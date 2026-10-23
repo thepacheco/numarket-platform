@@ -61,6 +61,8 @@ export async function submitEntry(_: ActionResult | null, form: FormData): Promi
 export async function uploadFile(_: UploadResult | null, form: FormData): Promise<UploadResult> {
   try {
     const { ctx, meta } = await tenantOrThrow("input.submit");
+    /* sandboxes hold a prospect's name but must never hold their real files */
+    if (ctx.tenant.sandboxUntil) return { ok: false, message: "Uploads are turned off in sandboxes, so real files stay out of it. Try the input screens instead; uploads open in your own workspace." };
     const slug = str(form, "screen");
     const intent = str(form, "intent") === "import" ? "import" : "check";
     const text = String(form.get("csv") ?? "");

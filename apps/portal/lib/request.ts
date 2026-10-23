@@ -48,3 +48,9 @@ export function serializeCookie(name: string, value: string, o: { path: string; 
 
 /** The marketing website, for links out of the demo. */
 export const MARKETING_URL = (process.env.MARKETING_URL ?? "https://numarket.us").replace(/\/$/, "");
+
+/** One cookie from a route handler's request. */
+export function readCookie(req: Request, name: string): string | undefined {
+  const hit = req.headers.get("cookie")?.split(/;\s*/).find((c) => c.startsWith(name + "="));
+  return hit ? decodeURIComponent(hit.slice(name.length + 1)) : undefined;
+}

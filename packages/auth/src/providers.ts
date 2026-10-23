@@ -2,6 +2,7 @@ import { withProvisioner, withPlatform, withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
 import type { Tenant } from "./context";
 import { createSession } from "./session";
+import { sandboxCodeOk } from "./sandbox";
 
 /* Sign-in providers, behind one interface so the managed provider (WorkOS
    AuthKit by default, Spec §4.1) can be plugged in without touching the rest.
@@ -40,8 +41,10 @@ export async function demoPersonas(tenant: Tenant): Promise<DemoPersona[]> {
   });
 }
 
-export async function startDemoSession(tenant: Tenant, persona: string, req: Req) {
+export async function startDemoSession(tenant: Tenant, persona: string, req: Req, opts: { sandboxCode?: string | null } = {}) {
   if (!tenant.isDemo) throw new Error("demo sign-in is only available on demo workspaces");
+  /* a prospect sandbox opens only with its access code */
+  if (tenant.sandboxUntil && !(await sandboxCodeOk(tenant.id, opts.sandboxCode))) throw new Error("sandbox access code required");
   return withTenant(tenant.id, async (db) => {
     const pol = await db.query<{ allowed_methods: string[]; session_hours: number }>("select allowed_methods, session_hours from security_policies");
     if (!pol.rows[0]?.allowed_methods.includes("demo")) throw new Error("demo sign-in is not allowed on this workspace");

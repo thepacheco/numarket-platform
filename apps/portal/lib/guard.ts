@@ -58,5 +58,5 @@ export async function staffOrThrow(roles?: string[]) {
 
 /* Demo workspaces are shared by every visitor, so settings stay fixed. */
 export function assertNotDemo(ctx: TenantContext) {
-  if (ctx.tenant.isDemo) throw new ActionError("Settings can't be changed in the demo workspace. Everything else works.");
+  if (ctx.tenant.isDemo) throw new ActionError("Settings are view-only in the demo and in sandboxes. Everything else works.");
 }

@@ -31,6 +31,7 @@ exit package within 30 days.
 | 15 | [Referral partners](#sop-15-referral-partners) | Weekly |
 | 16 | [Client exit](#sop-16-client-exit) | A client gives notice |
 | 17 | [Case studies and referrals](#sop-17-case-studies-and-referrals) | 60–90 days after go-live |
+| 18 | [Prospect sandbox](#sop-18-prospect-sandbox) | A prospect wants to try it themselves |
 
 ---
 
@@ -105,8 +106,10 @@ PDF → design a report → Marcus sees only his job → Luis on a phone → Ask
 Data → Data tables). Say plainly that the company is fictional and that their
 own workspace is set up during onboarding.
 
-After: send the demo link so they can click around themselves, and note what
-caught their attention in the lead list. That's what the proposal leads with.
+After: send the demo link so they can click around themselves, or, for a
+serious prospect, create them a private sandbox with their name on it
+(SOP-18). Note what caught their attention in the lead list. That's what the
+proposal leads with.
 
 ---
 
@@ -349,3 +352,22 @@ resellers (QuickBooks, Sage, Procore), industry consultants.
 2. Gather: hours per week before vs. after on their report, one decision they made faster, a quote, permission to use their name or an anonymized version.
 3. Write one page; they approve it before it's used anywhere.
 4. Ask who else they know with the same problem. Thank them for every introduction.
+
+---
+
+## SOP-18 Prospect sandbox
+
+**Starts:** after a Readiness Check or demo, when a prospect wants to try it themselves or show their team.
+**Who:** Brandon.
+**How fast:** same day as the meeting.
+
+1. GitHub → `numarket-platform` → **Actions** → **Sandbox** → **Run workflow**.
+2. Action `create`; the prospect's company name; days (14 is right for most; 30 at most); optionally 2–3 logo letters and their brand color. Run.
+3. Open the finished run → **Summary**: the address, the access code, and an email to send. Send it from brandon@, personally, with one line about what to look at first (their weekly report, the PM's view, the field report on a phone).
+4. Day 3: run `list`. "Last sign-in" and "Entries" tell you whether they used it. Follow up either way.
+5. They ask for more time: `extend` (gives a new code; send it).
+6. They sign, or go quiet after the follow-ups: `delete`, or let it close on its date.
+
+**Rules:** sample data only; uploads are off on purpose. Never load a prospect's real data into a sandbox: real data starts after the contract, in their real workspace. One sandbox per prospect. At most 25 open at once.
+
+**Done when:** the prospect has the address and code, and the follow-up date is in the lead list.

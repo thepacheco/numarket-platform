@@ -5,7 +5,7 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const APP = join(__dirname, "..", "apps", "portal", "app");
-const SIGN_IN_ROUTES = ["(tenant)/sign-in/demo/route.ts", "(tenant)/sign-in/dev/route.ts", "ops/sign-in/dev/route.ts", "(tenant)/sign-out/route.ts", "ops/sign-out/route.ts"];
+const SIGN_IN_ROUTES = ["(tenant)/sign-in/demo/route.ts", "(tenant)/sign-in/sandbox/route.ts", "(tenant)/sign-in/dev/route.ts", "ops/sign-in/dev/route.ts", "(tenant)/sign-out/route.ts", "ops/sign-out/route.ts"];
 const PUBLIC = new Set([...SIGN_IN_ROUTES, "(tenant)/sign-in/page.tsx", "(tenant)/blocked/page.tsx", "ops/sign-in/page.tsx", "not-found.tsx", "layout.tsx", "ops/layout.tsx"]);
 /* sign-in and sign-out are route handlers (above), so every action is guarded */
 const PUBLIC_ACTIONS = new Set<string>();
