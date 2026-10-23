@@ -64,3 +64,13 @@ describe("access checks", () => {
     expect(bad).toEqual([]);
   });
 });
+
+describe("demo addresses", () => {
+  it("uses DEMO_HOSTS when set, app.numarket.us plus the project address on Vercel, localhost otherwise", async () => {
+    const { defaultDemoHosts } = await import("../packages/db/scripts/seed");
+    expect(defaultDemoHosts({ DEMO_HOSTS: "a.example, B.example" })).toEqual(["a.example", "b.example"]);
+    expect(defaultDemoHosts({ VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "numarket-portal.vercel.app" })).toEqual(["app.numarket.us", "numarket-portal.vercel.app"]);
+    expect(defaultDemoHosts({ VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "app.numarket.us" })).toEqual(["app.numarket.us"]);
+    expect(defaultDemoHosts({})).toEqual(["demo.localhost:3100"]);
+  });
+});

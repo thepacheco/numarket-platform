@@ -10,9 +10,21 @@ import { ACME_SPEC, DEMO_SPEC, provisionSampleTenant, resetDemoTenant } from "..
 /* Neon gives a pooled URL for the app and a direct one for schema work. */
 if (process.env.DATABASE_URL_UNPOOLED) process.env.DATABASE_URL = process.env.DATABASE_URL_UNPOOLED;
 
+/* Which addresses open the demo. DEMO_HOSTS wins when set. On a Vercel
+   production build with no DEMO_HOSTS, the demo answers on app.numarket.us and
+   on the project's own production address, so nothing has to be typed in. */
+export function defaultDemoHosts(env: Record<string, string | undefined>): string[] {
+  const list = env.DEMO_HOSTS
+    ? env.DEMO_HOSTS.split(",")
+    : env.VERCEL_ENV === "production"
+      ? ["app.numarket.us", env.VERCEL_PROJECT_PRODUCTION_URL ?? ""]
+      : ["demo.localhost:3100"];
+  return [...new Set(list.map((h) => h.trim().toLowerCase()).filter(Boolean))];
+}
+
 export async function seed(log = console.log) {
   const prod = process.env.NODE_ENV === "production";
-  const demoHosts = (process.env.DEMO_HOSTS ?? "demo.localhost:3100").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+  const demoHosts = defaultDemoHosts(process.env);
   const exists = await withProvisioner(async (db) => (await db.query("select 1 from tenants where slug = 'demo'")).rowCount === 1);
   if (!exists || process.argv.includes("--force")) {
     await provisionSampleTenant(DEMO_SPEC(demoHosts));

@@ -45,12 +45,20 @@ Everything below is clicked in the Vercel dashboard under the team
    §4). This adds `DATABASE_URL` (pooled) and `DATABASE_URL_UNPOOLED`
    (direct) automatically.
 
-### Step 3. Environment variables (Project → Settings → Environment Variables)
+### Step 3. One setting: the nightly reset password (Project → Settings → Environment Variables)
 
 | Name | Value | Environments |
 |---|---|---|
-| `DEMO_HOSTS` | `app.numarket.us,numarket-portal.vercel.app` (the second is your project's production `.vercel.app` address, so you can test before DNS is ready; use the exact one Vercel shows) | Production |
-| `CRON_SECRET` | a long random string. Make one with `openssl rand -hex 32`. Mark it **Sensitive**. | Production |
+| `CRON_SECRET` | a long random string. In Terminal run `openssl rand -hex 32` and paste the result. Mark it **Sensitive**. | Production |
+
+It's a password only Vercel uses: every night at 08:00 UTC Vercel's timer
+calls the Portal to reset the demo and sends this value to prove it's Vercel.
+Nobody types it anywhere else. Without it the demo still works; it just
+resets only when you deploy.
+
+You don't need `DEMO_HOSTS` on Vercel: production builds open the demo on
+`app.numarket.us` and on the project's own `.vercel.app` address
+automatically. Set `DEMO_HOSTS` only to use different addresses.
 
 Don't set these in production: `ALLOW_DEV_SIGNIN` (the code refuses it in
 production anyway), `OPS_HOSTS` (the ops console has no production sign-in
@@ -60,7 +68,7 @@ until WorkOS is in), `APP_DOMAIN` (only once `numarket.app` is bought).
 Deployments → **Redeploy** the latest (or push to `main`). The production
 build runs `apps/portal/scripts/vercel-build.sh`, which:
 1. applies database migrations (`packages/db/migrations`, once each),
-2. creates or refreshes the demo workspace on the hosts in `DEMO_HOSTS`,
+2. creates or refreshes the demo workspace (on app.numarket.us and the project's own address),
 3. builds the app.
 
 Open `https://<your-production-address>.vercel.app/sign-in` and pick a person.
@@ -161,7 +169,7 @@ Today the demo publishes simulated snapshots.
 |---|---|---|
 | `DATABASE_URL` | Vercel (from Neon) | Pooled. Used by the app. |
 | `DATABASE_URL_UNPOOLED` | Vercel (from Neon) | Direct. Used by migrations and seed when present. |
-| `DEMO_HOSTS` | Vercel | Comma-separated hosts that open the demo workspace. |
+| `DEMO_HOSTS` | optional | Comma-separated hosts that open the demo. Default on Vercel production: app.numarket.us + the project's production address. |
 | `CRON_SECRET` | Vercel, Sensitive | Guards the nightly reset. |
 | `OPS_HOSTS` | later | Hosts for the ops console, once staff sign-in exists. |
 | `APP_DOMAIN` | later | `numarket.app` → `{workspace}.numarket.app`. |
