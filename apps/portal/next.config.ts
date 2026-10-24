@@ -4,6 +4,13 @@ const config: NextConfig = {
   poweredByHeader: false,
   transpilePackages: ["@numarket/auth", "@numarket/blocks", "@numarket/db", "@numarket/metering", "@numarket/ui"],
   serverExternalPackages: ["pg", "@react-pdf/renderer"],
+  /* "Run a report" became Explore; old links and saved bookmarks still work */
+  async redirects() {
+    return [
+      { source: "/run", destination: "/explore", permanent: false },
+      { source: "/run/:path*", destination: "/explore/:path*", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

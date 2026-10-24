@@ -350,7 +350,7 @@ export type AlertRuleRow = { id: string; kind: string; params: { amount?: number
 export async function listAlertRules(db: Db, userId: string) {
   return (await db.query<AlertRuleRow>("select id, kind, params, email, active, created_at from alert_rules where user_id = $1 order by created_at", [userId])).rows;
 }
-export async function insertAlertRule(db: Db, userId: string, kind: string, params: Record<string, number>, email: boolean) {
+export async function insertAlertRule(db: Db, userId: string, kind: string, params: Record<string, unknown>, email: boolean) {
   return (await db.query<{ id: string }>("insert into alert_rules (tenant_id, user_id, kind, params, email) values (current_tenant(), $1, $2, $3, $4) returning id", [userId, kind, JSON.stringify(params), email])).rows[0].id;
 }
 export async function updateAlertRule(db: Db, id: string, userId: string, patch: { active?: boolean; email?: boolean }) {

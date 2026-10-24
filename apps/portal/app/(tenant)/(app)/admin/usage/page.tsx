@@ -5,10 +5,11 @@ import { manualRefreshesToday, recentRuns } from "@numarket/db/repo/snapshots";
 import { TIER_LIMITS, updateNowLimit } from "@numarket/metering";
 import { fmtDateTime } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import { PRODUCT_INFO } from "@/lib/nav";
 
 export const metadata: Metadata = { title: "Usage & plan" };
 
-const PRODUCT: Record<string, string> = { foundation: "Foundation", workspace: "Workspace", insight: "Insight Review", engineering: "Engineering" };
+const PRODUCT: Record<string, string> = Object.fromEntries(Object.entries(PRODUCT_INFO).map(([k, v]) => [k, v.name]));
 const KIND: Record<string, string> = { scheduled: "Scheduled", manual: "Update now", reset: "Initial load" };
 
 export default async function Usage() {
@@ -55,6 +56,25 @@ export default async function Usage() {
           </p>
         </div>
       </div>
+      <section className="card" style={{ marginBottom: 18 }}>
+        <h2>Your products</h2>
+        <div className="guide-grid">
+          {(Object.keys(PRODUCT_INFO) as (keyof typeof PRODUCT_INFO)[]).map((k) => {
+            const owned = ctx.tenant.products.includes(k);
+            return (
+              <div key={k} className={`guide-tile p-${k} ${owned ? "" : "unowned"}`}>
+                <div className="guide-h">
+                  <span className={`pill ${owned ? "good" : ""}`}>{owned ? "In your plan" : "Not in your plan"}</span>
+                </div>
+                <b>
+                  {PRODUCT_INFO[k].name} · {PRODUCT_INFO[k].tagline}
+                </b>
+                <p className="small">{PRODUCT_INFO[k].about}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
       <div className="grid-2" style={{ alignItems: "start" }}>
         <section className="card">
           <h2>What your plan includes</h2>

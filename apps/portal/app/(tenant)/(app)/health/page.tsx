@@ -15,10 +15,10 @@ export default async function Health() {
   const attention = checks.filter((c) => c.status !== "pass").length;
   return (
     <>
-      <HubNav hub="data" current="/health" ctx={ctx} />
+      <HubNav hub="health" current="/health" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Your data</p>
+          <p className="eyebrow">Foundation · data health</p>
           <h1>Data health</h1>
           <p>Checks run on every update, before anything reaches a dashboard.</p>
         </div>

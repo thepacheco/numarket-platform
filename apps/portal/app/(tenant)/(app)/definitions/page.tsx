@@ -20,10 +20,10 @@ export default async function Definitions() {
   const sug = Object.fromEntries(suggestions.map((s) => [s.key, s.n]));
   return (
     <>
-      <HubNav hub="data" current="/definitions" ctx={ctx} />
+      <HubNav hub="health" current="/definitions" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Your data</p>
+          <p className="eyebrow">Foundation · data health</p>
           <h1>Definitions</h1>
           <p>
             What every number means, how it&apos;s calculated, and where it

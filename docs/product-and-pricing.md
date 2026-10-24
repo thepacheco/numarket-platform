@@ -1,6 +1,6 @@
 # numarket: what we sell, who does what, and whether the prices work
 
-**Version 1 · October 24, 2026 · Owner: Brandon.** Internal. Written to settle
+**Version 2 · October 24, 2026 · Owner: Brandon.** Internal. Written to settle
 the product lines for both the website and the Portal. Pass this file to any
 chat or person working on either; they should treat it as the source of truth.
 Sections marked **[DECISION]** need Brandon's yes before anything public changes.
@@ -33,67 +33,94 @@ wrong. It does not replace the project managers or the tools they work in.
 
 ## 2. The four products
 
+**The one-line version (changed October 24, v2):** Foundation is **your data**.
+Workspace is **what we build on it**. Insight Review is **your analyst**.
+Engineering is **apps made for you**. The Portal menu is organized exactly
+this way, so what a client sees matches what they pay for.
+
 | | **Foundation** | **Workspace** | **Insight Review** | **Engineering** |
 |---|---|---|---|---|
-| In one word | The plumbing | The software | The person | The custom build |
-| What it is | Connect, clean, check, and store the client's data, with written definitions | The numarket Portal: dashboards, reports, forms, Ask Your Data | A named numarket analyst on a schedule | Apps and automations made for one client |
-| Who uses it | Nobody day to day (admins see its health) | Everyone at the client | The client's leaders | Whoever the app is for |
-| Who builds it | numarket | numarket configures; clients arrange and use | numarket analyst | numarket engineer |
+| In a few words | Your data | Your dashboards and reports | Your analyst | Apps built for you |
+| What it is | Every system's data connected, cleaned, checked, and stored; plus the tools to look through it, add to it, and get alerts on it | What numarket builds on the data: dashboards, branded status reports, Ask Your Data | A named numarket analyst on a schedule | Apps and automations made for one client |
+| In the Portal menu | **Explore**, **Enter data**, **Data health** | **Dashboards**, **Reports**, **Ask Your Data** | **Your analyst** | **Apps** |
+| Who uses it | Everyone (looks through data, enters data, gets alerts); admins watch data health | Everyone | The client's leaders | Whoever the app is for |
+| Who builds it | numarket (connections, cleaning, checks, forms) | numarket builds; clients arrange and use | numarket analyst | numarket engineer |
 | Ends? | No, monthly | No, monthly | No, monthly | Yes, a project |
 | Required? | Yes, always | Optional | Optional | Optional |
 
-### Foundation: your clean data
-**Includes:** read-only connections to each source (the client clicks "Allow"),
-cleaning and matching rules, checks on every update, flags when the source
-data is wrong, business definitions (what every number means), the client's
-own private Snowflake database, backups, and the exit package.
+### Foundation: your data
+**Behind the scenes:** read-only connections to each source (the client clicks
+"Allow"), cleaning and matching rules, checks on every update, the client's own
+private Snowflake database, backups, and the exit package.
 
-**Can the client query their own database?** Yes. Through the Portal they see
-every clean table, preview it, and download it. For Excel, Power BI, or Tableau,
-we set up a read-only login to the clean tables (add-on on Small and Mid,
-included on Large). Their queries run on their own allowance.
+**What the client gets in the Portal:**
+- **Explore**: look through any of their data. Start from a view (open RFIs,
+  change order log, job cost by month, receivables aging, revenue by customer…),
+  then filter by period, job, or any column, find any word or number, group it,
+  save the view (for themselves or the team), and download it as CSV or PDF.
+  Admins also see **All tables** (every clean table, with what each row means).
+- **Alerts**: "tell me when a job goes over budget", "when customers owe more
+  than $100K past 60 days", "when cash drops below $500K", a **Monday summary
+  email** of every job, and **"Alert me" on any filtered view in Explore**
+  ("tell me when a new RFI waits more than 30 days"). Shown on a bell; emailed
+  if they turn email on.
+- **Enter data**: forms and uploads for information that isn't in any system
+  (see below).
+- **Data health**: each connection's status, the checks on every update, flags
+  (questions about the data that a person must answer), and the **business
+  definitions** (what every number means and where it comes from).
+
+**Can the client query their own database?** Yes: Explore and All tables in the
+Portal, and for Excel, Power BI, or Tableau a read-only login to the clean
+tables (add-on on Small and Mid, included on Large). Their queries run on their
+own allowance.
+
+**What is "Enter data" (forms)?** Yes, it's an input straight into the data.
+It's for information that isn't in any system yet: the superintendent's paper
+daily log, the change order spreadsheet emailed around at month end, timesheets
+kept in Excel. Each form replaces one specific paper form or spreadsheet; it's
+checked as people type (only real jobs, real dates, sensible numbers); what
+they enter joins the clean data and shows on dashboards at the next update. A
+spreadsheet can be uploaded instead, with the same checks. Most clients use
+zero to three forms, and the forms count as one of the plan's data sources. If
+the information is already in a system, we connect the system instead.
+- *Daily field report:* the superintendent's daily log (crew hours, percent complete, notes), done on a phone.
+- *Change order log:* approved changes to a job's scope and price, which most contractors keep in a spreadsheet.
+- *Time entry (services):* hours per project per day.
+
+**Why Foundation includes Explore and alerts:** it makes Foundation useful on
+its own (a client with their own BI or their own CFO can buy just Foundation
+and still look through clean data and get alerts), and it costs us little:
+it's the same software for every client, with no per-client build.
 
 **Doesn't include:** hand-fixing the same source errors every month (we flag
 them; the client fixes them in their system), turning paper into data
-(Engineering), or unlimited data volume (see §6).
+automatically (that's the Engineering scan app), or unlimited data volume (§5).
 
-### Workspace: the software your team uses
-**Includes:** dashboards, the weekly status report and other reports (in the
-client's branding, as PDFs), Run a report (filter, group, save, download),
-forms ("input screens") for information that isn't in any system, Ask Your
-Data (with a monthly question allowance), each person's Home page, roles and
-permissions, and a monthly allowance of change hours.
+### Workspace: your dashboards and reports
+**Includes:** dashboards numarket builds for the business (financials, jobs or
+projects, cash), status reports in the client's branding (numbers fill in, the
+team writes the commentary, publish as PDF), **Ask Your Data** (with a monthly
+question allowance), each person's Home page, copy any chart as a picture, and
+a monthly allowance of change hours.
 
 **Who builds dashboards?** numarket does. Clients don't build dashboards from
 scratch, on purpose: the value is that the numbers are right and everyone sees
 the same ones. Clients **arrange and use**: pick what's on their Home, pin
-charts, filter, save report views, design status reports from the existing
-charts and tables, and ask questions. A new dashboard page or a new metric is a
-change request (uses change hours). A brand-new kind of chart or an app is
-Engineering.
+charts, filter, design status reports from the existing charts and tables, and
+ask questions. A new dashboard page or a new metric is a change request (uses
+change hours). A brand-new kind of chart or an app is Engineering.
 
-**What are forms ("input screens")?** For information that isn't in any system
-yet: the superintendent's paper daily log, the change order spreadsheet emailed
-around at month end, timesheets kept in Excel. Each form replaces one specific
-paper form or spreadsheet. What people enter flows into the same clean data and
-dashboards at the next update. Most clients use zero to three. If the
-information is already in a system, we connect the system instead.
-- *Daily field report:* the superintendent's daily log (crew hours, percent complete, notes), done on a phone.
-- *Change order log:* a record of approved changes to a job's scope and price, which most contractors keep in a spreadsheet.
-- *Time entry (services):* hours per project per day.
+**Ask Your Data** runs on Snowflake's AI (Cortex) inside the client's own
+database, on small summary tables, using the business definitions. A monthly
+question allowance (200 on Small, 1,000 on Mid) keeps the cost fixed; a
+question costs cents. Each person sees their own question history.
 
-**Ask Your Data** is part of Workspace. It runs on Snowflake's AI (Cortex) inside
-the client's own database, on small summary tables, using the business
-definitions. A monthly question allowance (200 on Small, 1,000 on Mid) keeps the
-cost fixed; a question costs cents.
+**Why Ask is in Workspace, not Foundation:** it has a real per-question cost
+(AI), and it's only as good as the summary tables and definitions we set up
+for the dashboards.
 
-**Also in Workspace (built October 24):** alerts each person sets for
-themselves ("tell me when a job goes over budget", "when a customer is more than
-$100K late"), a Monday summary email of every job, a bell for new alerts, copy
-any chart as a picture, saved views and a find box in Run a report, and a
-history of your Ask questions. Alert emails start once an email service
-(Resend) is connected; until then alerts show in the Portal. **Still to come:**
-scheduling the branded status report itself as an email.
+**Still to come:** scheduling the branded status report itself as an email.
 
 ### Insight Review: your analyst
 Workspace tells you **what** the numbers are and flags automatic changes.
@@ -132,7 +159,10 @@ notes. Quoted as a project, then optional support.
 | Fix a wrong number in the source system | ✅ in their system | flags it | | flag raised |
 | Write the business definitions | approves | ✅ drafts | | |
 | Build dashboards and report templates | | ✅ from building blocks | | |
-| Arrange Home, pin, filter, save views | ✅ | | | |
+| Look through data, filter, save views, download (Explore) | ✅ | | | |
+| Set alerts, get the Monday summary | ✅ | | | ✅ checked every update |
+| Enter data not in any system (forms, uploads) | ✅ | sets up the form once | | ✅ checks every entry |
+| Arrange Home, pin charts | ✅ | | | |
 | Design a status report from existing charts | ✅ | can help | | |
 | Write the report commentary | ✅ (or analyst in Insight Review) | | | numbers fill in |
 | Ask questions | ✅ | | | answers |
@@ -242,20 +272,25 @@ targeting 60%+ margin.
 ## 6. What changes where
 
 **Website (for the website chat):**
-- Use the product lines in §2 word for word where possible: Foundation = your clean data; Workspace = the software your team uses (dashboards, reports, forms, Ask Your Data); Insight Review = your analyst (reviews, action items tracked to done, QBR packs); Engineering = built for you.
+- **The product lines changed (v2, October 24).** Use these, word for word where possible:
+  - **Foundation · your data:** every system connected, cleaned, checked, and kept in your private database. Explore it (filter, find, save views, download), get alerts and a Monday summary email, enter what isn't in any system (forms and uploads), and see its health and definitions.
+  - **Workspace · your dashboards and reports:** dashboards built for your business, status reports in your branding, Ask Your Data.
+  - **Insight Review · your analyst:** reviews that explain why the numbers moved, action items tracked to done, the QBR and board pack.
+  - **Engineering · apps built for you:** custom apps and automations, quoted as a project.
+- In `content/tiers.ts`, move "alerts" and "forms" out of Workspace's `what` line and into Foundation's; Workspace becomes "Dashboards, status reports, Ask Your Data, and change hours".
 - Add the "What we are not" table (§1) to the Platform or About page.
-- Explain forms (input screens) with the daily field report and change order log examples (§2).
+- Explain Enter data (forms) with the daily field report and change order log examples (§2).
 - Say clearly that numarket builds the dashboards and clients arrange and use them (§2).
 - State the Ask Your Data allowance (200 / 1,000 questions a month).
 - **Don't change prices until Brandon approves §5.** When approved, update `content/tiers.ts` (product prices, bundles, change hours) and the pricing FAQ.
 
 **Portal (done October 24, in the demo now):**
-- "Input screens" are now **Forms**, and each one says what it replaces and what it feeds.
-- Hover tooltips on every menu item explain what it is.
-- **Ask** is a button at the top of each dashboard and opens a side panel; Ask Your Data keeps your question history.
-- **Your analyst** explains the five things the analyst does, and has **Action items** (open, in progress, done) and the **QBR pack** (print or save as PDF).
-- **Engineering → Apps** has three examples: scan a paper form, estimate builder, change order approvals (approved ones go into the change order log by themselves).
-- **Alerts and emails** under Reports, with the bell in the top bar and a preview of each email.
+- The menu follows the products: **Foundation** (Explore, Enter data, Data health), **Workspace** (Dashboards, Reports, Ask Your Data), **Insight Review** (Your analyst), **Engineering** (Apps). Hover any item for what it's for.
+- **Explore** replaces "Run a report" and "Tables": filter by any column, find, save views, download, and **Alert me** on any filtered view. Old links redirect.
+- **Alerts** live under Explore, with the bell in the top bar, the Monday summary, and a preview of each email. Viewers can set their own alerts (so a CFO can get the Monday summary).
+- **Enter data** holds the forms and the spreadsheet upload; each form says what it replaces and what it feeds.
+- **Home** is calmer: a greeting with what needs you, Ask, your numbers and charts, the analyst's latest read, and a **What's where** map of the four products (including any not in the plan).
+- **Ask** is a button at the top of each dashboard (side panel), with question history on Ask Your Data.
+- **Your analyst**: the five things the analyst does, Action items (open, in progress, done), and the QBR pack (print or save as PDF).
+- **Apps** has three examples: scan a paper form, estimate builder, change order approvals (approved ones go into the change order log by themselves).
 - Any chart can be copied or saved as a picture.
-- Run a report has a find box and saved views (yours or shared with the team).
-- Viewers can now set their own alerts (so a CFO can get the Monday summary).

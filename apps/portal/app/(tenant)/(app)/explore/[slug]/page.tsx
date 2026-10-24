@@ -6,18 +6,21 @@ import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import { getDataReport, listSavedViews } from "@numarket/db/repo/workspace";
 import ActionForm, { Submit } from "@/components/ActionForm";
+import AddFilter from "@/components/AddFilter";
 import AutoSubmitSelect from "@/components/AutoSubmitSelect";
 import { asOfMonth, type Params } from "@/components/Dashboard";
+import HubNav from "@/components/HubNav";
 import Icon from "@/components/Icon";
+import ViewAlertForm from "@/components/ViewAlertForm";
 import { fmtDateTime, workspace } from "@/lib/data";
-import { run, runQuery, runState } from "@/lib/dataReport";
+import { emailConfigured } from "@/lib/email";
+import { describeView, isNumeric, OPS, run, runQuery, runState, whereParam } from "@/lib/explore";
 import { requireTenant } from "@/lib/guard";
-import { deleteView, saveView } from "../../../actions";
+import { addViewAlert, deleteView, saveView } from "../../../actions";
 
-export const metadata: Metadata = { title: "Run a report" };
-const isNum = (f?: string) => f === "money" || f === "num" || f === "pct" || f === "hours" || f === "dec2";
+export const metadata: Metadata = { title: "Explore" };
 
-export default async function RunReport({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Params> }) {
+export default async function ExploreView({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Params> }) {
   const ctx = await requireTenant("dashboard.view");
   const { slug } = await params;
   const v = vocabFor(ctx.tenant.industry);
@@ -27,33 +30,43 @@ export default async function RunReport({ params, searchParams }: { params: Prom
   if (ctx.scope && def.wholeCompany) notFound();
   const ws = await workspace(ctx);
   const datasets = ws.snapshot?.datasets ?? {};
-  const st = runState(def, datasets, ctx, await searchParams, asOfMonth(ws.snapshot?.published_at, ctx.tenant.timezone));
-  const out = run(def, datasets, ctx, st);
+  const st = runState(def, datasets, ctx.scope, await searchParams, asOfMonth(ws.snapshot?.published_at, ctx.tenant.timezone));
+  const out = run(def, datasets, ctx.scope, st);
   const canExport = ctx.can("dashboard.export") && ctx.policy.exportRoles.includes(ctx.role);
-  const base = `/run/${slug}`;
+  const base = `/explore/${slug}`;
   const shown = out.rows.slice(0, 500);
+  const cols = st.grouping.columns;
+  const keep = (over: Record<string, string | undefined> = {}) => Object.entries(Object.fromEntries(new URLSearchParams(runQuery(st, over))));
+  const emailNote = ctx.tenant.isDemo ? "The demo doesn't send email." : emailConfigured() ? `Emails go to ${ctx.user.email}.` : "Email starts once your workspace's email is switched on.";
+
   return (
     <>
+      <HubNav hub="explore" current="/explore" ctx={ctx} />
       <div className="dash-head">
         <div className="page-head" style={{ marginBottom: 0 }}>
           <div>
             <p className="eyebrow">
-              <Link href="/run">Run a report</Link> · {r.category}
+              <Link href="/explore">Explore</Link> · {r.category}
             </p>
             <h1>{r.title}</h1>
             <p>{r.description}</p>
           </div>
         </div>
-        {canExport && (
-          <div className="row">
-            <a className="btn btn-secondary btn-sm" href={`${base}/export?${runQuery(st)}&format=csv`}>
-              <Icon name="download" /> Spreadsheet (CSV)
-            </a>
-            <a className="btn btn-primary btn-sm" href={`${base}/export?${runQuery(st)}&format=pdf`}>
-              <Icon name="pdf" /> PDF
-            </a>
-          </div>
-        )}
+        <div className="dash-actions">
+          {canExport && (
+            <>
+              <a className="btn btn-secondary btn-sm" href={`${base}/export?${runQuery(st)}&format=csv`} data-tip="Download exactly what's on screen, every row, as a spreadsheet">
+                <Icon name="download" /> CSV
+              </a>
+              <a className="btn btn-secondary btn-sm" href={`${base}/export?${runQuery(st)}&format=pdf`} data-tip="Download what's on screen as a PDF in your branding">
+                <Icon name="pdf" /> PDF
+              </a>
+            </>
+          )}
+          {ctx.can("alert.manage_own") && (
+            <ViewAlertForm action={addViewAlert} slug={slug} query={runQuery(st)} numeric={cols.filter((c) => isNumeric(c) && c.format !== "pct" && c.format !== "dec2").map((c) => ({ field: c.field, label: c.label }))} name={describeView(r.title, st).slice(0, 80)} emailNote={emailNote} />
+          )}
+        </div>
       </div>
 
       <div className="filterbar">
@@ -64,7 +77,7 @@ export default async function RunReport({ params, searchParams }: { params: Prom
             </span>
             <div className="range-seg" role="group" aria-label="Grouping">
               {def.groupings.map((g) => (
-                <Link key={g.key} href={`${base}?${runQuery(st, { group: g.key })}`} aria-current={g.key === st.grouping.key ? "true" : undefined}>
+                <Link key={g.key} href={`${base}?${runQuery(st, { group: g.key, w: undefined })}`} aria-current={g.key === st.grouping.key ? "true" : undefined}>
                   {g.label}
                 </Link>
               ))}
@@ -87,9 +100,9 @@ export default async function RunReport({ params, searchParams }: { params: Prom
         )}
         {st.jobs.length > 1 && (
           <form method="get" className="field">
-            <input type="hidden" name="group" value={st.grouping.key} />
-            {st.range && <input type="hidden" name="range" value={st.range.key} />}
-            {st.find && <input type="hidden" name="find" value={st.find} />}
+            {keep({ job: undefined }).map(([k, val]) => (
+              <input key={k} type="hidden" name={k} value={val} />
+            ))}
             <label htmlFor="r-job">{v.Job}</label>
             <AutoSubmitSelect id="r-job" name="job" defaultValue={st.job ?? ""} className="input">
               <option value="">All {v.jobs}</option>
@@ -102,22 +115,36 @@ export default async function RunReport({ params, searchParams }: { params: Prom
           </form>
         )}
         <form method="get" className="field run-find" role="search">
-          <input type="hidden" name="group" value={st.grouping.key} />
-          {st.range && <input type="hidden" name="range" value={st.range.key} />}
-          {st.job && <input type="hidden" name="job" value={st.job} />}
+          {keep({ find: undefined }).map(([k, val]) => (
+            <input key={k} type="hidden" name={k} value={val} />
+          ))}
           <label htmlFor="r-find">Find</label>
           <span className="run-find-box">
             <Icon name="search" />
             <input id="r-find" name="find" className="input" defaultValue={st.find ?? ""} placeholder="Any name, number, or word" maxLength={60} />
             {st.find && (
-              <Link href={`${base}?${runQuery(st, { find: undefined })}`} aria-label="Clear" data-tip="Clear the filter">
+              <Link href={`${base}?${runQuery(st, { find: undefined })}`} aria-label="Clear" data-tip="Clear the find text">
                 <Icon name="x" />
               </Link>
             )}
           </span>
         </form>
+      </div>
+
+      <div className="views-bar">
+        {st.where.map((w, i) => (
+          <span key={i} className="view-chip filter-chip">
+            <span>
+              <b>{cols.find((c) => c.field === w.field)?.label}</b> {OPS[w.op]} {w.value}
+            </span>
+            <Link href={`${base}?${runQuery(st, { w: whereParam(st.where.filter((_, j) => j !== i)) || undefined })}`} className="icon-btn" aria-label="Remove this filter" data-tip="Remove this filter">
+              <Icon name="x" />
+            </Link>
+          </span>
+        ))}
+        <AddFilter columns={cols.map((c) => ({ field: c.field, label: c.label, numeric: isNumeric(c) }))} base={base} query={runQuery(st, { w: undefined })} where={whereParam(st.where)} />
         <span className="range-label">
-          {st.range ? st.range.label : "As of today"} · {out.rows.length.toLocaleString("en-US")} rows · data updated {ws.snapshot ? fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) : "—"}
+          {st.range ? st.range.label : "As of today"} · {out.rows.length.toLocaleString("en-US")} {out.rows.length === 1 ? "row" : "rows"} · data updated {ws.snapshot ? fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) : "—"}
         </span>
       </div>
 
@@ -141,30 +168,30 @@ export default async function RunReport({ params, searchParams }: { params: Prom
           </span>
         ))}
         <details className="view-save">
-          <summary className="btn btn-secondary btn-sm">
+          <summary className="btn btn-ghost btn-sm">
             <Icon name="plus" /> Save this view
           </summary>
           <div className="view-pop card">
             <ActionForm action={saveView} className="stack" resetOnSuccess>
-                  <input type="hidden" name="slug" value={slug} />
-                  {Object.entries(Object.fromEntries(new URLSearchParams(runQuery(st)))).map(([k, val]) => (
-                    <input key={k} type="hidden" name={k} value={val} />
-                  ))}
-                  <div className="field">
-                    <label htmlFor="v-name">Name</label>
-                    <input id="v-name" name="name" className="input" required maxLength={80} placeholder={`e.g. ${st.grouping.label}, ${st.range?.label ?? "today"}`} />
-                  </div>
-                  {ctx.can("report.edit") && (
-                    <label className="row small" style={{ gap: 8 }}>
-                      <input type="checkbox" name="shared" /> Share with my team
-                    </label>
-                  )}
-                  <p className="small muted" style={{ margin: 0 }}>
-                    Saves the grouping, period, {v.job}, and find text. The numbers stay live: opening the view shows the latest data.
-                  </p>
-                  <div>
-                    <Submit>Save view</Submit>
-                  </div>
+              <input type="hidden" name="slug" value={slug} />
+              {keep().map(([k, val]) => (
+                <input key={k} type="hidden" name={k} value={val} />
+              ))}
+              <div className="field">
+                <label htmlFor="v-name">Name</label>
+                <input id="v-name" name="name" className="input" required maxLength={80} placeholder={`e.g. ${st.grouping.label}, ${st.range?.label ?? "today"}`} />
+              </div>
+              {ctx.can("report.edit") && (
+                <label className="row small" style={{ gap: 8 }}>
+                  <input type="checkbox" name="shared" /> Share with my team
+                </label>
+              )}
+              <p className="small muted" style={{ margin: 0 }}>
+                Saves the grouping, period, {v.job}, find text, and filters. The numbers stay live: opening the view shows the latest data.
+              </p>
+              <div>
+                <Submit>Save view</Submit>
+              </div>
             </ActionForm>
           </div>
         </details>
@@ -176,8 +203,8 @@ export default async function RunReport({ params, searchParams }: { params: Prom
             <table className="b-table">
               <thead>
                 <tr>
-                  {st.grouping.columns.map((c) => (
-                    <th key={c.field} scope="col" className={isNum(c.format) ? "num" : ""}>
+                  {cols.map((c) => (
+                    <th key={c.field} scope="col" className={isNumeric(c) ? "num" : ""}>
                       {c.label}
                     </th>
                   ))}
@@ -186,8 +213,8 @@ export default async function RunReport({ params, searchParams }: { params: Prom
               <tbody>
                 {shown.map((row, i) => (
                   <tr key={i}>
-                    {st.grouping.columns.map((c) => (
-                      <td key={c.field} className={isNum(c.format) ? "num tnum" : ""}>
+                    {cols.map((c) => (
+                      <td key={c.field} className={isNumeric(c) ? "num tnum" : ""}>
                         {fmt(row[c.field], c.format, { full: c.format === "money" })}
                       </td>
                     ))}
@@ -197,8 +224,8 @@ export default async function RunReport({ params, searchParams }: { params: Prom
               {out.totals && (
                 <tfoot>
                   <tr>
-                    {st.grouping.columns.map((c, i) => (
-                      <td key={c.field} className={isNum(c.format) ? "num tnum" : ""}>
+                    {cols.map((c, i) => (
+                      <td key={c.field} className={isNumeric(c) ? "num tnum" : ""}>
                         {i === 0 ? "Total" : c.field in out.totals! ? fmt(out.totals![c.field], c.format, { full: c.format === "money" }) : ""}
                       </td>
                     ))}
@@ -208,7 +235,7 @@ export default async function RunReport({ params, searchParams }: { params: Prom
             </table>
           </div>
         ) : (
-          <p className="b-empty">{st.find ? `Nothing contains "${st.find}" for this period.` : `Nothing for this period and ${v.job}.`}</p>
+          <p className="b-empty">{st.find || st.where.length ? "Nothing matches these filters for this period." : `Nothing for this period and ${v.job}.`}</p>
         )}
         {out.rows.length > shown.length && <p className="small muted">Showing the first 500 rows. The download has all {out.rows.length.toLocaleString("en-US")}.</p>}
       </div>

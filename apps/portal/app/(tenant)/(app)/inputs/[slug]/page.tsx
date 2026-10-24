@@ -39,7 +39,7 @@ export default async function InputScreen({ params }: { params: Promise<{ slug: 
       <div className="page-head">
         <div>
           <p className="eyebrow">
-            <Link href="/inputs">Forms</Link>
+            <Link href="/inputs">Enter data</Link>
           </p>
           <h1>{screen.title}</h1>
           <p>{screen.description}</p>

@@ -20,11 +20,11 @@ export default async function UploadPage({ searchParams }: { searchParams: Promi
   const jobs = jobsInScope(ws.snapshot?.datasets, ctx);
   return (
     <>
-      <HubNav hub="data" current="/upload" ctx={ctx} />
+      <HubNav hub="enter" current="/upload" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Foundation</p>
-          <h1>Upload files</h1>
+          <p className="eyebrow">Foundation · enter data</p>
+          <h1>Upload a spreadsheet</h1>
           <p>For data that lives in spreadsheets or another system&apos;s export. Download a template, fill it in, and upload it. Every row is checked the same way as the forms.</p>
         </div>
       </div>

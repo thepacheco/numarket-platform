@@ -8,22 +8,27 @@ import { getHomeLayout, listActionItems, listDashboards, listEntries, listFlags,
 import AskBox from "@/components/AskBox";
 import { asOfMonth } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
+import SolidIcon from "@/components/solids/SolidIcon";
 import { suggestedFor } from "@/lib/ask";
+import { syncAlerts } from "@/lib/alertsSync";
 import { ago, fmtTime, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
+import { navFor } from "@/lib/nav";
 import { askQuestion } from "../actions";
 
 export const metadata: Metadata = { title: "Home" };
 
-/* Each person's own landing page, laid out as a bento grid: a greeting with
-   what needs them today, an "ask anything" box, the key numbers they chose,
-   their charts, and panels for the analyst's review, reports, and data
-   freshness. Field roles get a page built around today's entry. */
+/* Each person's own landing page, kept calm: a greeting with what needs
+   them, a box to ask anything, the numbers and charts they chose, the
+   analyst's latest read, and (always) a map of where everything is. Field roles get
+   a page built around today's entry. More panels can be added under
+   Customize. */
 export default async function Home() {
   const ctx = await requireTenant();
   const v = vocabFor(ctx.tenant.industry);
   const ws = await workspace(ctx);
+  const alerts = await syncAlerts(ctx);
   const tz = ctx.tenant.timezone;
   const hour = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: tz }));
   const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -61,14 +66,18 @@ export default async function Home() {
   const pendingMine = data.mine.filter((e) => e.status === "pending").length;
   const fieldRole = !ctx.can("dashboard.view") && ctx.can("input.submit");
   const fieldScreen = v.industry === "services" ? "time-entry" : "daily-field-report";
+  const firing = alerts.rules.filter((r) => r.active && (alerts.firing.get(r.id)?.length ?? 0) > 0);
 
   /* the "needs you" list: things that wait on a person, most urgent first */
   const needs = [
-    ...data.flags.slice(0, 3).map((f) => ({ key: `f${f.id}`, icon: "flag", tone: f.severity === "urgent" ? "risk" : "watch", title: f.title, sub: f.question ?? "A data question to answer", href: "/flags" })),
-    ...openActions.slice(0, 3).map((a) => ({ key: `a${a.idx}`, icon: "check", tone: a.status === "in_progress" ? "info" : "brand", title: a.title, sub: `${a.owner} · due ${a.due}${a.status === "in_progress" ? " · in progress" : ""}`, href: "/reviews/actions" })),
-    ...(pendingMine ? [{ key: "pending", icon: "clock", tone: "info", title: `${pendingMine} of your ${pendingMine === 1 ? "entry" : "entries"} go in at the next update`, sub: `Next update ${fmtTime(ws.nextUpdate, tz)}`, href: "/inputs" }] : []),
+    ...data.flags.slice(0, 2).map((f) => ({ key: `f${f.id}`, icon: "flag", tone: f.severity === "urgent" ? "risk" : "watch", title: f.title, sub: f.question ?? "A data question to answer", href: "/flags" })),
     ...(unhealthy.length ? [{ key: "src", icon: "plug", tone: "risk", title: `${unhealthy.length} ${unhealthy.length === 1 ? "source needs" : "sources need"} reconnecting`, sub: unhealthy.map((s) => s.name).join(", "), href: "/sources" }] : []),
-  ];
+    ...(firing.length ? [{ key: "alerts", icon: "bell", tone: "watch", title: `${firing.length} of your alerts ${firing.length === 1 ? "has" : "have"} something to show`, sub: firing.map((r) => alerts.firing.get(r.id)![0].title).slice(0, 2).join(" · "), href: "/alerts" }] : []),
+    ...openActions.slice(0, 2).map((a) => ({ key: `a${a.idx}`, icon: "check", tone: a.status === "in_progress" ? "info" : "brand", title: a.title, sub: `Action item · ${a.owner} · due ${a.due}`, href: "/reviews/actions" })),
+    ...(pendingMine ? [{ key: "pending", icon: "clock", tone: "info", title: `${pendingMine} of your ${pendingMine === 1 ? "entry goes" : "entries go"} in at the next update`, sub: `Next update ${fmtTime(ws.nextUpdate, tz)}`, href: "/inputs" }] : []),
+  ].slice(0, 6);
+
+  const sections = navFor(ctx);
 
   return (
     <>
@@ -78,33 +87,35 @@ export default async function Home() {
             <span className="date-chip">
               <Icon name="calendar" /> {today}
             </span>
-            <Link href="/home/customize" className="icon-btn" aria-label="Customize your Home page" title="Customize your Home page">
+            <Link href="/home/customize" className="icon-btn" aria-label="Customize your Home page" data-tip="Choose what's on your Home page">
               <Icon name="grid" />
             </Link>
           </div>
-          <p className="eyebrow">{ctx.tenant.name}</p>
           <h1>
             {greet}, {first}.
           </h1>
-          <p className="hero-sub">{needs.length ? `${needs.length} ${needs.length === 1 ? "thing needs" : "things need"} you today.` : "Nothing needs you right now. Here's how things stand."}</p>
-          <div className="hero-stats">
-            {ctx.can("flags.view") && (
-              <Link href="/flags" className="hero-stat">
-                <b className="tnum">{ws.openFlags}</b>
-                <span>data {ws.openFlags === 1 ? "flag" : "flags"} to answer</span>
-              </Link>
-            )}
-            {review && (
-              <Link href="/reviews/actions" className="hero-stat">
-                <b className="tnum">{openActions.length}</b>
-                <span>open action {openActions.length === 1 ? "item" : "items"}</span>
-              </Link>
-            )}
-            <Link href={ctx.can("flags.view") ? "/health" : "/definitions"} className="hero-stat">
-              <b>{updated ? fmtTime(updated, tz) : "—"}</b>
-              <span>last data update · next {fmtTime(ws.nextUpdate, tz)}</span>
-            </Link>
-          </div>
+          <p className="hero-sub">
+            {updated ? `Your data updated ${ago(updated)}; next update ${fmtTime(ws.nextUpdate, tz)}.` : "Your data hasn't had its first update yet."}{" "}
+            {has("attention") && (needs.length ? `${needs.length} ${needs.length === 1 ? "thing needs" : "things need"} you.` : "Nothing needs you right now.")}
+          </p>
+          {has("attention") && needs.length > 0 && (
+            <ul className="needs-list">
+              {needs.map((x) => (
+                <li key={x.key}>
+                  <Link href={x.href}>
+                    <span className={`needs-ico tone-${x.tone}`}>
+                      <Icon name={x.icon} />
+                    </span>
+                    <span className="needs-text">
+                      <b>{x.title}</b>
+                      <span>{x.sub}</span>
+                    </span>
+                    <Icon name="arrow" className="needs-go" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
 
         {ctx.can("ask.use") ? (
@@ -125,7 +136,7 @@ export default async function Home() {
               </Link>
               {ctx.tenant.products.includes("engineering") && (
                 <Link href="/apps/paper-intake" className="btn btn-secondary">
-                  <Icon name="upload" /> Scan a paper form
+                  <Icon name="scan" /> Scan a paper form
                 </Link>
               )}
             </div>
@@ -142,45 +153,14 @@ export default async function Home() {
       )}
 
       <div className="bento home-main">
-        {has("attention") && (
-          <section className="card c-5 needs">
-            <div className="panel-h">
-              <h2>Needs you</h2>
-              {needs.length > 0 && <span className="pill">{needs.length}</span>}
-            </div>
-            {needs.length ? (
-              <ul className="needs-list">
-                {needs.map((x) => (
-                  <li key={x.key}>
-                    <Link href={x.href}>
-                      <span className={`needs-ico tone-${x.tone}`}>
-                        <Icon name={x.icon} />
-                      </span>
-                      <span className="needs-text">
-                        <b>{x.title}</b>
-                        <span>{x.sub}</span>
-                      </span>
-                      <Icon name="arrow" className="needs-go" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="empty-note">
-                <Icon name="check" /> You&apos;re all caught up.
-              </p>
-            )}
-          </section>
-        )}
-
-        {charts.slice(0, 1).map((w) => (
-          <div key={w.id} className={has("attention") ? "c-7" : "c-6"}>
+        {charts.map((w, i) => (
+          <div key={w.id} className={charts.length === 1 || (charts.length % 2 === 1 && i === charts.length - 1) ? "c-12" : "c-6"}>
             <BlockView block={{ ...w.block, span: 1 }} c={c} />
           </div>
         ))}
 
         {has("review") && review && (
-          <section className="card c-7 analyst-card">
+          <section className="card c-12 analyst-card">
             <div className="panel-h">
               <h2>
                 <span className="analyst-dot" aria-hidden="true">
@@ -190,9 +170,9 @@ export default async function Home() {
                     .map((w) => w[0])
                     .join("")}
                 </span>
-                {review.analyst.split(",")[0]}&apos;s {review.title.replace(/ review$/, "")} review
+                {review.analyst.split(",")[0]}, your analyst: {review.title.replace(/ review$/, "")}
               </h2>
-              <Link href={`/reviews/${review.id}`}>Read it</Link>
+              <Link href={`/reviews/${review.id}`}>Read the review</Link>
             </div>
             <p className="review-summary">{review.content.summary}</p>
             <div className="mini-changes">
@@ -207,17 +187,11 @@ export default async function Home() {
           </section>
         )}
 
-        {charts.slice(1).map((w) => (
-          <div key={w.id} className="c-5">
-            <BlockView block={{ ...w.block, span: 1 }} c={c} />
-          </div>
-        ))}
-
         {has("entries") && (
-          <section className="card c-5">
+          <section className="card c-6">
             <div className="panel-h">
               <h2>Your entries</h2>
-              <Link href="/inputs">Forms</Link>
+              <Link href="/inputs">Enter data</Link>
             </div>
             {data.mine.length ? (
               <ul className="list small">
@@ -237,9 +211,9 @@ export default async function Home() {
         )}
 
         {has("reports") && data.reports.length > 0 && (
-          <section className="card c-4">
+          <section className="card c-6">
             <div className="panel-h">
-              <h2>Reports</h2>
+              <h2>Status reports</h2>
               <Link href="/reports">All reports</Link>
             </div>
             <ul className="list small">
@@ -253,26 +227,34 @@ export default async function Home() {
           </section>
         )}
 
-        {has("freshness") && (
-          <section className="card c-3 fresh-card">
-            <h2>Your data</h2>
-            <p className="fresh-big">
-              <span className="pulse-dot" aria-hidden="true" /> {updated ? ago(updated) : "Not yet"}
-            </p>
-            <dl className="kv small">
-              <dt>Next update</dt>
-              <dd>{fmtTime(ws.nextUpdate, tz)}</dd>
-              <dt>Waiting</dt>
-              <dd>{ws.pending ? `${ws.pending} new ${ws.pending === 1 ? "entry" : "entries"}` : "Nothing"}</dd>
-              {ctx.can("sources.view") && (
-                <>
-                  <dt>Sources</dt>
-                  <dd>{unhealthy.length ? <span className="pill reconnect">{unhealthy.length} need attention</span> : <span className="pill healthy">All healthy</span>}</dd>
-                </>
-              )}
-            </dl>
-          </section>
-        )}
+        {/* always last: the map of the menu, by what each part is for */}
+        <section className="card c-12 guide">
+          <div className="panel-h">
+            <h2>What&apos;s where</h2>
+            <span className="small muted">Everything in the menu, by what it&apos;s for</span>
+          </div>
+          <div className="guide-grid">
+            {sections.map((s) => (
+              <div key={s.product} className={`guide-tile p-${s.product} ${s.owned ? "" : "unowned"}`}>
+                <div className="guide-h">
+                  <SolidIcon kind={s.product} size={18} muted={!s.owned} />
+                  <div>
+                    <b>{s.tagline}</b>
+                    <span className="small muted">{s.name}</span>
+                  </div>
+                </div>
+                <p className="small">{s.short}</p>
+                <div className="guide-links">
+                  {s.items.map((i) => (
+                    <Link key={i.href} href={i.href} data-tip={i.tip}>
+                      {i.locked ? "Not in your plan: see what it adds" : i.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </>
   );

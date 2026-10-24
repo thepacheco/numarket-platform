@@ -1,17 +1,22 @@
-import { fmt, visibleRows, type Datasets } from "@numarket/blocks";
+import { fmt, visibleRows, type DataReportDef, type Datasets } from "@numarket/blocks";
 import type { Scope } from "@numarket/db/repo/snapshots";
 import type { Vocab } from "@numarket/db/demo/vocab";
+import { describeView, rowKey, run, runState } from "./explore";
 
 /* Alerts: a person's own rules, checked against the latest update. Pure
    functions over the published data, so the page, the bell, and the daily
    email job all agree on what's firing. */
 
-export type AlertKind = "job_over_budget" | "ar_over_60" | "rfi_waiting" | "cash_below" | "flag_opened" | "weekly_summary";
-export type AlertRule = { id: string; kind: AlertKind; params: { amount?: number; days?: number }; email: boolean; active: boolean };
+export type AlertKind = "job_over_budget" | "ar_over_60" | "rfi_waiting" | "cash_below" | "flag_opened" | "weekly_summary" | "view";
+/* A "view" alert remembers the Explore view (its slug and filters), the
+   condition, and the rows already there when it was set, so only new ones fire. */
+export type ViewParams = { slug?: string; q?: string; name?: string; cond?: "rows" | "total"; column?: string; colLabel?: string; op?: "above" | "below"; seen?: string[] };
+export type AlertRule = { id: string; kind: AlertKind; params: { amount?: number; days?: number } & ViewParams; email: boolean; active: boolean };
+export type ViewDefs = Record<string, { title: string; definition: DataReportDef }>;
 export type Firing = { key: string; title: string; body: string; link: string; tone: "risk" | "watch" | "info" };
 export type Who = { scope: Scope; wholeCompany: boolean; flags: boolean };
 
-type KindInfo = { kind: AlertKind; label: (v: Vocab) => string; describe: (r: AlertRule, v: Vocab) => string; param?: { key: "amount" | "days"; label: string; default: number; min: number; max: number; step: number }; allowed: (w: Who) => boolean };
+type KindInfo = { kind: AlertKind; label: (v: Vocab) => string; describe: (r: AlertRule, v: Vocab) => string; param?: { key: "amount" | "days"; label: string; default: number; min: number; max: number; step: number }; allowed: (w: Who) => boolean; preset?: false };
 
 const money = (x: number) => fmt(x, "money", { full: true });
 
@@ -56,13 +61,24 @@ export const ALERT_KINDS: KindInfo[] = [
     describe: () => "When the checks find something in your data that needs a person to answer.",
     allowed: (w) => w.flags,
   },
+  {
+    /* made from a filtered view in Explore, never from the preset list */
+    kind: "view",
+    label: () => "From a view in Explore",
+    describe: (r) => (r.params.cond === "total" ? `When the total ${r.params.colLabel ?? r.params.column ?? ""} ${r.params.op === "below" ? "goes below" : "goes above"} ${fmt(r.params.amount ?? 0, "num")}, for the filters you set.` : "When something new shows up that matches the filters you set."),
+    allowed: () => true,
+    preset: false,
+  },
 ];
 export const kindInfo = (k: string) => ALERT_KINDS.find((x) => x.kind === k);
+/** What to call a rule in lists: its own name for one made from a view. */
+export const ruleLabel = (r: AlertRule, v: Vocab) => (r.kind === "view" ? r.params.name || "From a view" : (kindInfo(r.kind)?.label(v) ?? r.kind));
 
 /** What a rule finds in the current data. Each firing has a key, so it's sent once, not every day. */
-export function evaluate(rule: AlertRule, ds: Datasets, who: Who, v: Vocab, asOfMonth: string, flags: { id: string; title: string; job: string | null }[] = []): Firing[] {
+export function evaluate(rule: AlertRule, ds: Datasets, who: Who, v: Vocab, asOfMonth: string, flags: { id: string; title: string; job: string | null }[] = [], views: ViewDefs = {}): Firing[] {
   const info = kindInfo(rule.kind);
   if (!rule.active || !info || !info.allowed(who)) return [];
+  if (rule.kind === "view") return evaluateView(rule, ds, who, asOfMonth, views);
   const amt = rule.params.amount ?? info.param?.default ?? 0;
   if (rule.kind === "job_over_budget") {
     return visibleRows(ds, "job_summary", who.scope)
@@ -92,6 +108,38 @@ export function evaluate(rule: AlertRule, ds: Datasets, who: Who, v: Vocab, asOf
     return flags.filter((f) => !who.scope || !f.job || who.scope.values.includes(f.job)).map((f) => ({ key: `flag:${f.id}`, tone: "watch", title: "A data flag needs an answer", body: f.title, link: "/flags" }));
   }
   return [];
+}
+
+/** A view alert: run the saved view exactly as Explore would, for this person. */
+function evaluateView(rule: AlertRule, ds: Datasets, who: Who, asOfMonth: string, views: ViewDefs): Firing[] {
+  const p = rule.params;
+  const view = p.slug ? views[p.slug] : undefined;
+  if (!view || (who.scope && view.definition.wholeCompany)) return [];
+  const st = runState(view.definition, ds, who.scope, Object.fromEntries(new URLSearchParams(p.q ?? "")), asOfMonth);
+  const out = run(view.definition, ds, who.scope, st);
+  const link = `/explore/${p.slug}${p.q ? `?${p.q}` : ""}`;
+  const label = p.name || describeView(view.title, st);
+  const cols = st.grouping.columns;
+  if (p.cond === "total") {
+    const col = cols.find((c) => c.field === p.column);
+    if (!col) return [];
+    const total = out.rows.reduce((t, r) => t + (Number(r[col.field]) || 0), 0);
+    const line = p.amount ?? 0;
+    const hit = p.op === "below" ? total < line : total > line;
+    return hit ? [{ key: `view:${rule.id}:total:${asOfMonth}`, tone: "watch", title: `${label}: ${col.label} is ${fmt(total, col.format, { full: true })}`, body: `That's ${p.op === "below" ? "below" : "above"} your line of ${fmt(line, col.format, { full: true })}, for the filters you set.`, link }] : [];
+  }
+  const seen = new Set(p.seen ?? []);
+  return out.rows
+    .map((r) => ({ r, k: rowKey(r, cols) }))
+    .filter((x) => !seen.has(x.k))
+    .slice(0, 20)
+    .map(({ r, k }) => ({ key: `view:${rule.id}:${k}`, tone: "info", title: `New in “${label}”: ${fmt(r[cols[0].field], cols[0].format, { full: true })}`, body: cols.slice(1, 5).map((c) => `${c.label} ${fmt(r[c.field], c.format, { full: c.format === "money" })}`).join(" · "), link }));
+}
+
+/** The rows a new view alert starts from, so it fires only for rows that come later. */
+export function viewBaseline(def: DataReportDef, ds: Datasets, scope: Scope, q: string, asOfMonth: string) {
+  const st = runState(def, ds, scope, Object.fromEntries(new URLSearchParams(q)), asOfMonth);
+  return run(def, ds, scope, st).rows.slice(0, 300).map((r) => rowKey(r, st.grouping.columns));
 }
 
 /** The Monday summary: every job this person can see, worst first. */

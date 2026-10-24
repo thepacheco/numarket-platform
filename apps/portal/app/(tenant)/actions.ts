@@ -625,7 +625,7 @@ export async function decideApproval(_: ActionResult | null, form: FormData): Pr
 
 /* ---------- saved report views ---------- */
 
-const VIEW_KEYS = ["group", "range", "from", "to", "job", "find"] as const;
+const VIEW_KEYS = ["group", "range", "from", "to", "job", "find", "w"] as const;
 
 /** Save the filters on a Run-a-report page under a name, for yourself or the team. */
 export async function saveView(_: ActionResult | null, form: FormData): Promise<ActionResult> {
@@ -635,14 +635,14 @@ export async function saveView(_: ActionResult | null, form: FormData): Promise<
     if (name.length < 2) return { ok: false, message: "Give the view a name.", errors: { name: "Required." } };
     const slug = str(form, "slug");
     const shared = str(form, "shared") === "on" && ctx.can("report.edit");
-    const params = Object.fromEntries(VIEW_KEYS.map((k) => [k, str(form, k).slice(0, 60)]).filter(([, v]) => v));
+    const params = Object.fromEntries(VIEW_KEYS.map((k) => [k, str(form, k).slice(0, k === "w" ? 300 : 60)]).filter(([, v]) => v));
     return withTenant(ctx.tenant.id, async (db) => {
       const { getDataReport, insertSavedView, listSavedViews } = await import("@numarket/db/repo/workspace");
       if (!(await getDataReport(db, slug))) throw new ActionError("That report doesn't exist.");
       if ((await listSavedViews(db, ctx.user.id)).filter((v) => v.user_id === ctx.user.id).length >= 50) throw new ActionError("You have 50 saved views. Delete one first.");
       await insertSavedView(db, ctx.user.id, slug, name, params, shared);
-      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "view.save", target: `run/${slug}`, detail: { name, shared }, ip: meta.ip });
-      revalidatePath("/run", "layout");
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "view.save", target: `explore/${slug}`, detail: { name, shared }, ip: meta.ip });
+      revalidatePath("/explore", "layout");
       return { ok: true, message: shared ? "Saved and shared with your team." : "Saved. It's under Saved views." };
     }, { userId: ctx.user.id });
   });
@@ -656,7 +656,7 @@ export async function deleteView(_: ActionResult | null, form: FormData): Promis
       const ok = await deleteSavedView(db, str(form, "id"), ctx.user.id, ctx.can("report.edit") && ctx.can("users.manage"));
       if (!ok) throw new ActionError("You can delete only your own views.");
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "view.delete", ip: meta.ip });
-      revalidatePath("/run", "layout");
+      revalidatePath("/explore", "layout");
       return { ok: true, message: "Deleted." };
     }, { userId: ctx.user.id });
   });
@@ -719,5 +719,50 @@ export async function markAlertsRead(_: ActionResult | null): Promise<ActionResu
     await withTenant(ctx.tenant.id, (db) => markNotificationsRead(db, ctx.user.id), { userId: ctx.user.id });
     revalidatePath("/", "layout");
     return { ok: true, message: "All caught up." };
+  });
+}
+
+/** "Alert me" on a view in Explore: new rows that match its filters, or a total crossing a line. */
+export async function addViewAlert(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("alert.manage_own");
+    const slug = str(form, "slug");
+    const cond = str(form, "cond") === "total" ? "total" : "rows";
+    const name = str(form, "name").slice(0, 80) || "From a view";
+    const email = str(form, "email") === "on";
+    /* keep only the view's own settings from the address */
+    const raw = new URLSearchParams(str(form, "q").slice(0, 600));
+    const q = new URLSearchParams();
+    for (const k of VIEW_KEYS) if (raw.get(k)) q.set(k, raw.get(k)!.slice(0, k === "w" ? 300 : 60));
+    const { runState, isNumeric } = await import("@/lib/explore");
+    const { viewBaseline } = await import("@/lib/alerts");
+    const { asOfMonth } = await import("@/components/Dashboard");
+    const ws = await workspace(ctx);
+    if (!ws.snapshot) throw new ActionError("Your data hasn't had its first update yet.");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { getDataReport, insertAlertRule, listAlertRules } = await import("@numarket/db/repo/workspace");
+      const r = await getDataReport(db, slug);
+      if (!r) throw new ActionError("That view doesn't exist.");
+      const def = r.definition as import("@numarket/blocks").DataReportDef;
+      if (ctx.scope && def.wholeCompany) throw new ActionError("That view is outside your data scope.");
+      if ((await listAlertRules(db, ctx.user.id)).length >= 20) throw new ActionError("You have 20 alerts. Remove one first.");
+      const asOf = asOfMonth(ws.snapshot!.published_at, ctx.tenant.timezone);
+      const st = runState(def, ws.snapshot!.datasets, ctx.scope, Object.fromEntries(q), asOf);
+      const params: Record<string, unknown> = { slug, q: q.toString(), name, cond };
+      if (cond === "total") {
+        const col = st.grouping.columns.find((c) => c.field === str(form, "column"));
+        const amount = Number(str(form, "amount"));
+        if (!col || !isNumeric(col)) return { ok: false, message: "Pick a number column." };
+        if (!Number.isFinite(amount)) return { ok: false, message: "Enter the number to watch for." };
+        Object.assign(params, { column: col.field, colLabel: col.label, op: str(form, "op") === "below" ? "below" : "above", amount });
+      } else {
+        /* what's already there doesn't count as new */
+        params.seen = viewBaseline(def, ws.snapshot!.datasets, ctx.scope, q.toString(), asOf);
+      }
+      await insertAlertRule(db, ctx.user.id, "view", params, email);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "alert.create", target: `explore/${slug}`, detail: { cond, email }, ip: meta.ip });
+      revalidatePath("/", "layout");
+      return { ok: true, message: cond === "rows" ? `Set. You'll hear about anything new here (${(params.seen as string[]).length} rows already here don't count).` : "Set. You'll hear when the total crosses your line." };
+    }, { userId: ctx.user.id });
   });
 }

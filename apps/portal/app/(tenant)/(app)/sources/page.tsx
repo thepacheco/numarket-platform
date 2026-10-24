@@ -19,10 +19,10 @@ export default async function Sources() {
   const next = fmtTime(ws.nextUpdate, ctx.tenant.timezone);
   return (
     <>
-      <HubNav hub="data" current="/sources" ctx={ctx} />
+      <HubNav hub="health" current="/sources" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Your data</p>
+          <p className="eyebrow">Foundation · data health</p>
           <h1>Sources</h1>
           <p>Each tool your data comes from. Every connection is read-only: it copies data out and can&apos;t change anything in your systems.</p>
         </div>

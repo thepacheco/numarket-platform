@@ -11,11 +11,10 @@ import { vocabFor } from "@numarket/db/demo/vocab";
 
 export type Widget = { id: string; title: string; from: string; block: Block };
 export const PANELS = [
-  { id: "attention", title: "Needs you (flags, action items, waiting entries)", needs: null },
-  { id: "review", title: "Your analyst's latest review", needs: "actions.view" },
-  { id: "entries", title: "Your entries", needs: "input.submit" },
-  { id: "freshness", title: "Your data (last and next update)", needs: null },
-  { id: "reports", title: "Reports", needs: "report.view" },
+  { id: "attention", title: "Needs you (flags, action items, waiting entries)", needs: null, standard: true },
+  { id: "review", title: "Your analyst's latest review", needs: "actions.view", standard: true },
+  { id: "entries", title: "Your entries", needs: "input.submit", standard: false },
+  { id: "reports", title: "Status reports", needs: "report.view", standard: false },
 ] as const;
 
 export function catalog(dashboards: { slug: string; title: string; layout: unknown }[], ctx: TenantContext) {
@@ -28,8 +27,10 @@ const byTitle = (list: Widget[], titles: string[]) => titles.map((t) => list.fin
 
 export function defaultLayout(ctx: TenantContext, cat: ReturnType<typeof catalog>): HomeLayout {
   const v = vocabFor(ctx.tenant.industry);
-  const panels = PANELS.filter((p) => !p.needs || ctx.can(p.needs as never)).map((p) => p.id as string);
-  if (!ctx.can("dashboard.view")) return { kpis: [], charts: [], panels: panels.filter((p) => p !== "reports") };
+  /* a calm default: what needs you and the analyst; more can be added under Customize */
+  const allowed = PANELS.filter((p) => !p.needs || ctx.can(p.needs as never));
+  const panels = allowed.filter((p) => p.standard).map((p) => p.id as string);
+  if (!ctx.can("dashboard.view")) return { kpis: [], charts: [], panels: [...panels, "entries"].filter((p) => allowed.some((a) => a.id === p)) };
   if (ctx.scope)
     return {
       kpis: byTitle(cat.kpis, [`${v.Job} cost in period`, "Cost performance", "Cost vs. budget for work done", v.rfiShort]),

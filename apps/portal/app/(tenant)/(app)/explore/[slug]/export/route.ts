@@ -6,7 +6,7 @@ import { getDataReport } from "@numarket/db/repo/workspace";
 import { asOfMonth } from "@/components/Dashboard";
 import { renderTablePdf } from "@/components/pdf/TablePdf";
 import { workspace } from "@/lib/data";
-import { run, runState } from "@/lib/dataReport";
+import { describeView, run, runState } from "@/lib/explore";
 import { tenantOrThrow } from "@/lib/guard";
 import { csvCell } from "@/lib/csv";
 
@@ -29,15 +29,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   if (ctx.scope && def.wholeCompany) return new Response("Not found", { status: 404 });
   const ws = await workspace(ctx);
   const tz = ctx.tenant.timezone;
-  const st = runState(def, ws.snapshot?.datasets ?? {}, ctx, Object.fromEntries(url.searchParams), asOfMonth(ws.snapshot?.published_at, tz));
-  const out = run(def, ws.snapshot?.datasets ?? {}, ctx, st);
+  const st = runState(def, ws.snapshot?.datasets ?? {}, ctx.scope, Object.fromEntries(url.searchParams), asOfMonth(ws.snapshot?.published_at, tz));
+  const out = run(def, ws.snapshot?.datasets ?? {}, ctx.scope, st);
   const format = url.searchParams.get("format") === "pdf" ? "pdf" : "csv";
   const branding = await withTenant(ctx.tenant.id, async (db) => {
-    await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: ctx.tenant.isDemo ? "demo" : "user", action: `export.${format}`, target: `run/${slug}`, detail: { group: st.grouping.key, range: st.range?.current ?? null, job: st.job ?? null, find: st.find ?? null }, ip: meta.ip });
+    await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: ctx.tenant.isDemo ? "demo" : "user", action: `export.${format}`, target: `explore/${slug}`, detail: { group: st.grouping.key, range: st.range?.current ?? null, job: st.job ?? null, find: st.find ?? null, filters: st.where.length }, ip: meta.ip });
     return getBranding(db);
   });
   const jobName = st.jobs.find((j) => j.v === st.job)?.l;
-  const filters = [st.grouping.label, st.range ? st.range.label : "As of today", jobName ?? (def.filters.job ? "All jobs" : null), st.find ? `Containing "${st.find}"` : null].filter(Boolean).join(" · ");
+  const filters = [st.grouping.label, st.range ? st.range.label : "As of today", jobName ?? (def.filters.job ? "All jobs" : null), st.find || st.where.length ? describeView("", { ...st, job: undefined }).replace(/^ · /, "") : null].filter(Boolean).join(" · ");
   const name = `${slug}-${st.grouping.key}`;
   if (format === "pdf") {
     const pdf = await renderTablePdf({

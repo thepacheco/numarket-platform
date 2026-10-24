@@ -4194,3 +4194,69 @@ a.analyst-step:hover {
   gap: 5px;
   align-items: center;
 }
+
+/* ---- Home v3: calmer ---- */
+.hero-greet .needs-list {
+  margin-top: 14px;
+}
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.guide-tile {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  padding: 14px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--pc, var(--brand)) 6%, var(--surface));
+}
+.guide-tile.p-foundation { --pc: var(--p-foundation); }
+.guide-tile.p-workspace { --pc: var(--p-workspace); }
+.guide-tile.p-insight { --pc: var(--p-insight); }
+.guide-tile.p-engineering { --pc: var(--p-engineering); }
+.guide-tile.unowned {
+  background: var(--surface-2);
+  opacity: 0.8;
+}
+.guide-h {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.guide-h > div {
+  display: grid;
+}
+.guide-tile p {
+  margin: 0;
+  color: var(--text-2);
+}
+.guide-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guide-links a {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--text);
+  text-decoration: none;
+}
+.guide-links a:hover {
+  color: var(--pc, var(--brand-text));
+}
+@media (max-width: 1100px) {
+  .guide-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 600px) {
+  .guide-grid {
+    grid-template-columns: 1fr;
+  }
+}

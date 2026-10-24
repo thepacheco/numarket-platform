@@ -85,3 +85,41 @@ describe("QBR quarters", () => {
     expect(quarterRange(qs[0]).prior).toEqual({ from: "2026-04", to: "2026-06" });
   });
 });
+
+describe("Explore filters and view alerts", async () => {
+  const { DATA_REPORTS } = await import("../packages/db/src/demo/config");
+  const { parseWhere, run, runState, whereParam } = await import("../apps/portal/lib/explore");
+  const { viewBaseline } = await import("../apps/portal/lib/alerts");
+  const rfis = DATA_REPORTS.find((r) => r.slug === "open-rfis")!;
+  const def = rfis.definition as import("@numarket/blocks").DataReportDef;
+  const views = { "open-rfis": { title: rfis.title, definition: def } };
+  const viewRule = (params: AlertRule["params"]): AlertRule => ({ id: "v1", kind: "view", params: { slug: "open-rfis", ...params }, email: false, active: true });
+
+  it("filters by any column and keeps only valid filters", () => {
+    const cols = def.groupings[0].columns;
+    expect(parseWhere("days_open~gt~30|nope~gt~1|days_open~gt~abc|subject~has~door", cols).map((w) => w.field)).toEqual(["days_open", "subject"]);
+    const st = runState(def, ds, null, { w: "days_open~gt~30" }, "2026-10");
+    const out = run(def, ds, null, st);
+    expect(out.rows.length).toBeGreaterThan(0);
+    expect(out.rows.every((r) => Number(r.days_open) > 30)).toBe(true);
+    expect(whereParam(st.where)).toBe("days_open~gt~30");
+  });
+  it("a scoped person's view only has their jobs", () => {
+    const st = runState(def, ds, routeNineOnly.scope, {}, "2026-10");
+    expect(run(def, ds, routeNineOnly.scope, st).rows.every((r) => r.job_name === "Route 9 Bridge")).toBe(true);
+  });
+  it("a view alert ignores rows that were there when it was set", () => {
+    const q = "w=days_open~gt~10";
+    const seen = viewBaseline(def, ds, null, q, "2026-10");
+    expect(seen.length).toBeGreaterThan(0);
+    expect(evaluate(viewRule({ q, cond: "rows", seen }), ds, everyone, CONSTRUCTION, "2026-10", [], views)).toEqual([]);
+    const fresh = evaluate(viewRule({ q, cond: "rows", seen: seen.slice(1) }), ds, everyone, CONSTRUCTION, "2026-10", [], views);
+    expect(fresh.length).toBe(1);
+    expect(fresh[0].link).toBe(`/explore/open-rfis?${q}`);
+  });
+  it("a total alert fires once a month when the line is crossed", () => {
+    const above = evaluate(viewRule({ cond: "total", column: "days_open", op: "above", amount: 1 }), ds, everyone, CONSTRUCTION, "2026-10", [], views);
+    expect(above.map((f) => f.key)).toEqual(["view:v1:total:2026-10"]);
+    expect(evaluate(viewRule({ cond: "total", column: "days_open", op: "below", amount: 1 }), ds, everyone, CONSTRUCTION, "2026-10", [], views)).toEqual([]);
+  });
+});

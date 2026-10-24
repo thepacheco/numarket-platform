@@ -12,7 +12,7 @@ export default async function ConnectTools() {
       <div className="page-head">
         <div>
           <p className="eyebrow">
-            <Link href="/data">Data tables</Link>
+            <Link href="/data">All tables</Link>
           </p>
           <h1>Use your data in your own tools</h1>
           <p>Your analysts can read the same clean tables from Excel, Power BI, Tableau, or any tool that connects to Snowflake, with a read-only login that can&apos;t change anything.</p>
@@ -29,7 +29,7 @@ export default async function ConnectTools() {
               <b>They sign in from their tool</b> using your company&apos;s single sign-on, with the second sign-in step on.
             </li>
             <li>
-              <b>They see the clean tables only</b>: the same ones listed under Data tables, with the same definitions. Not the raw copies, not the cleaning code.
+              <b>They see the clean tables only</b>: the same ones listed under All tables, with the same definitions. Not the raw copies, not the cleaning code.
             </li>
             <li>
               <b>Their queries run on their own allowance</b>, so heavy analysis doesn&apos;t slow your dashboards or use your plan&apos;s included usage.

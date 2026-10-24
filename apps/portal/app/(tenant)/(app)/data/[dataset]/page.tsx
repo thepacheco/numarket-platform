@@ -41,7 +41,7 @@ export default async function DataTable({ params }: { params: Promise<{ dataset:
         <div className="page-head" style={{ marginBottom: 0 }}>
           <div>
             <p className="eyebrow">
-              <Link href="/data">Data tables</Link>
+              <Link href="/explore">Explore</Link> · <Link href="/data">All tables</Link>
             </p>
             <h1>{t.title}</h1>
             <p>

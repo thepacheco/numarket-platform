@@ -3,12 +3,13 @@ import Link from "next/link";
 import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import { listScreens } from "@numarket/db/repo/workspace";
+import HubNav from "@/components/HubNav";
 import Icon from "@/components/Icon";
 import PendingNote from "@/components/PendingNote";
 import { workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 
-export const metadata: Metadata = { title: "Forms" };
+export const metadata: Metadata = { title: "Enter data" };
 
 /* What each sample form replaces and what it feeds, so people see why it's
    here. A real workspace's forms carry the same two lines. */
@@ -26,10 +27,11 @@ export default async function Inputs() {
   const screens = await withTenant(ctx.tenant.id, listScreens);
   return (
     <>
+      <HubNav hub="enter" current="/inputs" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Workspace</p>
-          <h1>Forms</h1>
+          <p className="eyebrow">Foundation · your data</p>
+          <h1>Enter data</h1>
           <p>For information that isn&apos;t in any of your systems yet. Each form replaces one paper form or spreadsheet; what you enter goes into your data and shows up on your dashboards at the next update.</p>
         </div>
       </div>

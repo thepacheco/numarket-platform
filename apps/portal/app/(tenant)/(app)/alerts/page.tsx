@@ -7,7 +7,7 @@ import ActionForm, { Submit } from "@/components/ActionForm";
 import AlertForm from "@/components/AlertForm";
 import HubNav from "@/components/HubNav";
 import Icon from "@/components/Icon";
-import { ALERT_KINDS, kindInfo } from "@/lib/alerts";
+import { ALERT_KINDS, kindInfo, ruleLabel } from "@/lib/alerts";
 import { syncAlerts, whoFor } from "@/lib/alertsSync";
 import { ago } from "@/lib/data";
 import { emailConfigured } from "@/lib/email";
@@ -25,7 +25,7 @@ export default async function Alerts() {
   const notes = await withTenant(ctx.tenant.id, (db) => listNotifications(db, ctx.user.id, 25), { userId: ctx.user.id });
   const who = whoFor(ctx);
   const hasSummary = rules.some((r) => r.kind === "weekly_summary");
-  const choices = ALERT_KINDS.filter((k) => k.allowed(who) && !(k.kind === "weekly_summary" && hasSummary)).map((k) => ({ kind: k.kind, label: k.label(v), about: k.describe({ id: "", kind: k.kind, params: k.param ? { [k.param.key]: k.param.default } : {}, email: true, active: true }, v), param: k.param }));
+  const choices = ALERT_KINDS.filter((k) => k.preset !== false && k.allowed(who) && !(k.kind === "weekly_summary" && hasSummary)).map((k) => ({ kind: k.kind, label: k.label(v), about: k.describe({ id: "", kind: k.kind, params: k.param ? { [k.param.key]: k.param.default } : {}, email: true, active: true }, v), param: k.param }));
   const emailNote = ctx.tenant.isDemo
     ? "This is a demo, so no emails are sent. Use “Preview the email” to see exactly what would arrive."
     : emailConfigured()
@@ -34,12 +34,12 @@ export default async function Alerts() {
 
   return (
     <>
-      <HubNav hub="reports" current="/alerts" ctx={ctx} />
+      <HubNav hub="explore" current="/alerts" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Workspace</p>
+          <p className="eyebrow">Foundation · your data</p>
           <h1>Alerts and emails</h1>
-          <p>Tell me when something needs attention, and send me a summary every Monday. Every update is checked against your alerts; nobody has to watch the dashboards.</p>
+          <p>Tell me when something needs attention, and send me a summary every Monday. Every update is checked against your alerts; nobody has to watch the dashboards. For anything else, filter a view in <Link href="/explore">Explore</Link> and choose <b>Alert me</b>.</p>
         </div>
       </div>
 
@@ -56,10 +56,10 @@ export default async function Alerts() {
               <article key={r.id} className={`card alert-rule ${r.active ? "" : "paused"}`}>
                 <div className="alert-rule-h">
                   <span className={`needs-ico ${summary ? "tone-info" : f.length ? "tone-risk" : "tone-brand"}`}>
-                    <Icon name={summary ? "mail" : "bell"} />
+                    <Icon name={summary ? "mail" : r.kind === "view" ? "search" : "bell"} />
                   </span>
                   <div>
-                    <b>{info.label(v)}</b>
+                    <b>{ruleLabel(r, v)}</b>
                     <div className="small muted">{info.describe(r, v)}</div>
                   </div>
                   <span className={`pill ${!r.active ? "" : summary ? "info" : f.length ? "risk" : "good"}`}>{!r.active ? "Paused" : summary ? "Mondays, 7 AM" : f.length ? `${f.length} now` : "All clear"}</span>

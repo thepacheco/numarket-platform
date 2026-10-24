@@ -7,6 +7,7 @@ import { recordNotifications, setEmailStatus } from "@numarket/db/repo/workspace
 import { asOfMonth } from "@/components/Dashboard";
 import { evaluate, isoWeek, weeklySummary, type AlertRule, type Who } from "@/lib/alerts";
 import { alertEmail, emailConfigured, sendEmail, summaryEmail } from "@/lib/email";
+import { viewDefs } from "@/lib/alertsSync";
 
 /* Daily, called by Vercel Cron with Authorization: Bearer <CRON_SECRET>.
    Checks every person's alerts in every live workspace against its latest
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
         ).rows;
         if (!rules.length) return { fired: 0, emailed: 0 };
         const flags = (await db.query<{ id: string; title: string; job: string | null }>("select id, title, job from flags where status = 'open'")).rows;
+        const views = await viewDefs(db, rules);
         const b = (await db.query<{ display_name: string | null; primary_color: string | null }>("select display_name, primary_color from branding")).rows[0];
         const host = (await db.query<{ host: string }>("select host from tenant_hosts where tenant_id = $1 order by length(host) limit 1", [t.id])).rows[0]?.host;
         const brand = { name: b?.display_name ?? t.name, color: b?.primary_color ?? "#22577A", url: `https://${host ?? "app.numarket.us"}` };
@@ -65,7 +67,7 @@ export async function GET(req: Request) {
               }
               continue;
             }
-            const items = evaluate(rule, snap.datasets, who, v, asOf, flags);
+            const items = evaluate(rule, snap.datasets, who, v, asOf, flags, views);
             const fresh = await recordNotifications(db, userId, rule.id, items);
             f += fresh.length;
             if (fresh.length && rule.email) {

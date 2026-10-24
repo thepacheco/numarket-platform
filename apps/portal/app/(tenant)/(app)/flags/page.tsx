@@ -24,10 +24,10 @@ export default async function Flags() {
 
   return (
     <>
-      <HubNav hub="data" current="/flags" ctx={ctx} />
+      <HubNav hub="health" current="/flags" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Your data</p>
+          <p className="eyebrow">Foundation · data health</p>
           <h1>Flags</h1>
           <p>The checks settle most problems on their own. These need someone who knows the business to say what&apos;s right. The answer is recorded with the data, and anything that needs fixing is fixed in the system it came from.</p>
         </div>

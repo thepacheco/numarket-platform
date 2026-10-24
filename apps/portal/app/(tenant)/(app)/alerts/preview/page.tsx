@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import Icon from "@/components/Icon";
-import { kindInfo, weeklySummary } from "@/lib/alerts";
+import { ruleLabel, weeklySummary } from "@/lib/alerts";
 import { syncAlerts, whoFor } from "@/lib/alertsSync";
 import { fmtDateTime, workspace } from "@/lib/data";
 import { alertEmail, summaryEmail } from "@/lib/email";
@@ -20,7 +20,6 @@ export default async function EmailPreview({ searchParams }: { searchParams: Pro
   const { rules, firing } = await syncAlerts(ctx);
   const rule = rules.find((r) => r.id === id);
   if (!rule) notFound();
-  const info = kindInfo(rule.kind)!;
   const ws = await workspace(ctx);
   const h = await headers();
   const brand = { name: ws.branding?.display_name ?? ctx.tenant.name, color: ws.branding?.primary_color ?? "#22577A", url: `https://${h.get("host") ?? "app.numarket.us"}` };
@@ -40,7 +39,7 @@ export default async function EmailPreview({ searchParams }: { searchParams: Pro
           <p className="eyebrow">
             <Link href="/alerts">Alerts and emails</Link>
           </p>
-          <h1>{info.label(v)}</h1>
+          <h1>{ruleLabel(rule, v)}</h1>
           <p>{rule.kind === "weekly_summary" ? `What arrives every Monday at 7 AM, with today's numbers.` : f.length ? "The email this alert sends, with today's numbers." : "Nothing to send right now: this alert is all clear. When it finds something, the email lists each item with a link straight to it."}</p>
         </div>
       </div>

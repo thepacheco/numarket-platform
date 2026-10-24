@@ -8,7 +8,7 @@ import { fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import HubNav from "@/components/HubNav";
 
-export const metadata: Metadata = { title: "Data tables" };
+export const metadata: Metadata = { title: "All tables" };
 
 /* Foundation's output, made visible: the clean tables in the client's private
    database. Everything numarket builds reads from these. */
@@ -20,11 +20,11 @@ export default async function DataTables() {
   const visible = tables.filter((t) => !ctx.scope || scopeRows(ds[t.dataset], ctx.scope).length > 0);
   return (
     <>
-      <HubNav hub="data" current="/data" ctx={ctx} />
+      <HubNav hub="explore" current="/data" ctx={ctx} />
       <div className="page-head">
         <div>
-          <p className="eyebrow">Foundation</p>
-          <h1>Data tables</h1>
+          <p className="eyebrow">Foundation · explore</p>
+          <h1>All tables</h1>
           <p>Your cleaned, matched data lives in your own private database, a dedicated Snowflake account that holds only your company&apos;s data. These are its tables. Every dashboard, report, and answer reads from them.</p>
         </div>
       </div>
