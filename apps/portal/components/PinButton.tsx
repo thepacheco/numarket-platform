@@ -15,7 +15,7 @@ export default function PinButton({ id, pinned, action }: { id: string; pinned: 
   return (
     <form action={formAction} className="pin-form">
       <input type="hidden" name="id" value={id} />
-      <button type="submit" className={`pin-btn ${on ? "on" : ""}`} aria-pressed={on} disabled={pending} title={state && !state.ok ? state.message : on ? "On your Home page. Click to remove." : "Pin to your Home page"}>
+      <button type="submit" className={`pin-btn ${on ? "on" : ""}`} aria-pressed={on} disabled={pending} data-tip={state && !state.ok ? state.message : on ? "On your Home page. Click to remove." : "Pin to your Home page"}>
         <Icon name="pin" />
         <span className="sr-only">{on ? "Remove from Home" : "Pin to Home"}</span>
       </button>

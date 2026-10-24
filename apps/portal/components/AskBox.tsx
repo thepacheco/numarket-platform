@@ -9,8 +9,8 @@ import type { AskState } from "@/lib/ask";
    Home and dashboards, keeps only the latest answer and links to the full
    Ask Your Data page. */
 export default function AskBox({
-  action, suggested, defs, compact = false, placeholder = "Ask a question about your numbers",
-}: { action: (p: AskState | null, f: FormData) => Promise<AskState>; suggested: string[]; defs: Record<string, string>; compact?: boolean; placeholder?: string }) {
+  action, suggested, defs, compact = false, placeholder = "Ask a question about your numbers", history,
+}: { action: (p: AskState | null, f: FormData) => Promise<AskState>; suggested: string[]; defs: Record<string, string>; compact?: boolean; placeholder?: string; history?: { q: string; when: string; answered: boolean }[] }) {
   const [state, formAction, pending] = useActionState(action, null);
   const input = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -19,7 +19,10 @@ export default function AskBox({
     input.current.value = q;
     form.current.requestSubmit();
   };
-  return (
+  /* this visit's questions join the saved history at the top */
+  const asked = state?.items.map((it) => it.question) ?? [];
+  const past = (history ?? []).filter((h) => !asked.some((q) => q.toLowerCase() === h.q.toLowerCase()));
+  const box = (
     <div className={`ask ${compact ? "ask-compact" : ""}`}>
       <form ref={form} action={formAction} className="ask-box">
         <Icon name="chat" />
@@ -89,6 +92,42 @@ export default function AskBox({
           Ask more on the Ask Your Data page
         </Link>
       ) : null}
+    </div>
+  );
+  if (!history) return box;
+  return (
+    <div className="ask-layout">
+      {box}
+      <aside className="card ask-history" aria-label="Your recent questions">
+        <h2>
+          <Icon name="history" /> Your recent questions
+        </h2>
+        {asked.length + past.length === 0 ? (
+          <p className="small muted">Questions you ask show up here, so you can ask them again when the data updates.</p>
+        ) : (
+          <ul>
+            {asked.map((q, i) => (
+              <li key={`now-${i}`}>
+                <button type="button" onClick={() => ask(q)} disabled={pending} data-tip="Ask again with the latest data">
+                  <span>{q}</span>
+                  <span className="small muted">Just now</span>
+                </button>
+              </li>
+            ))}
+            {past.map((h) => (
+              <li key={h.q}>
+                <button type="button" onClick={() => ask(h.q)} disabled={pending} data-tip="Ask again with the latest data">
+                  <span>{h.q}</span>
+                  <span className="small muted">
+                    {h.when}
+                    {h.answered ? "" : " · not answered"}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
     </div>
   );
 }

@@ -3,13 +3,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fmt, RANGE_OPTIONS, type DataReportDef } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
-import { getDataReport } from "@numarket/db/repo/workspace";
+import { vocabFor } from "@numarket/db/demo/vocab";
+import { getDataReport, listSavedViews } from "@numarket/db/repo/workspace";
+import ActionForm, { Submit } from "@/components/ActionForm";
 import AutoSubmitSelect from "@/components/AutoSubmitSelect";
 import { asOfMonth, type Params } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
 import { fmtDateTime, workspace } from "@/lib/data";
 import { run, runQuery, runState } from "@/lib/dataReport";
 import { requireTenant } from "@/lib/guard";
+import { deleteView, saveView } from "../../../actions";
 
 export const metadata: Metadata = { title: "Run a report" };
 const isNum = (f?: string) => f === "money" || f === "num" || f === "pct" || f === "hours" || f === "dec2";
@@ -17,7 +20,8 @@ const isNum = (f?: string) => f === "money" || f === "num" || f === "pct" || f =
 export default async function RunReport({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Params> }) {
   const ctx = await requireTenant("dashboard.view");
   const { slug } = await params;
-  const r = await withTenant(ctx.tenant.id, (db) => getDataReport(db, slug));
+  const v = vocabFor(ctx.tenant.industry);
+  const { r, views } = await withTenant(ctx.tenant.id, async (db) => ({ r: await getDataReport(db, slug), views: await listSavedViews(db, ctx.user.id, slug) }), { userId: ctx.user.id });
   if (!r) notFound();
   const def = r.definition as DataReportDef;
   if (ctx.scope && def.wholeCompany) notFound();
@@ -85,9 +89,10 @@ export default async function RunReport({ params, searchParams }: { params: Prom
           <form method="get" className="field">
             <input type="hidden" name="group" value={st.grouping.key} />
             {st.range && <input type="hidden" name="range" value={st.range.key} />}
-            <label htmlFor="r-job">Job</label>
+            {st.find && <input type="hidden" name="find" value={st.find} />}
+            <label htmlFor="r-job">{v.Job}</label>
             <AutoSubmitSelect id="r-job" name="job" defaultValue={st.job ?? ""} className="input">
-              <option value="">All jobs</option>
+              <option value="">All {v.jobs}</option>
               {st.jobs.map((o) => (
                 <option key={o.v} value={o.v}>
                   {o.l}
@@ -96,9 +101,73 @@ export default async function RunReport({ params, searchParams }: { params: Prom
             </AutoSubmitSelect>
           </form>
         )}
+        <form method="get" className="field run-find" role="search">
+          <input type="hidden" name="group" value={st.grouping.key} />
+          {st.range && <input type="hidden" name="range" value={st.range.key} />}
+          {st.job && <input type="hidden" name="job" value={st.job} />}
+          <label htmlFor="r-find">Find</label>
+          <span className="run-find-box">
+            <Icon name="search" />
+            <input id="r-find" name="find" className="input" defaultValue={st.find ?? ""} placeholder="Any name, number, or word" maxLength={60} />
+            {st.find && (
+              <Link href={`${base}?${runQuery(st, { find: undefined })}`} aria-label="Clear" data-tip="Clear the filter">
+                <Icon name="x" />
+              </Link>
+            )}
+          </span>
+        </form>
         <span className="range-label">
           {st.range ? st.range.label : "As of today"} · {out.rows.length.toLocaleString("en-US")} rows · data updated {ws.snapshot ? fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) : "—"}
         </span>
+      </div>
+
+      <div className="views-bar">
+        <span className="small muted">Saved views</span>
+        {views.length === 0 && <span className="small muted">· none yet</span>}
+        {views.map((sv) => (
+          <span key={sv.id} className="view-chip">
+            <Link href={`${base}?${new URLSearchParams(sv.params).toString()}`} data-tip={sv.shared ? `Shared by ${sv.user_id === ctx.user.id ? "you" : (sv.by_name ?? "a teammate")}` : "Only you see this one"}>
+              {sv.shared && <Icon name="users" />} {sv.name}
+            </Link>
+            {sv.user_id === ctx.user.id && (
+              <ActionForm action={deleteView} className="view-del">
+                <input type="hidden" name="id" value={sv.id} />
+                <Submit className="icon-btn">
+                  <Icon name="x" />
+                  <span className="sr-only">Delete {sv.name}</span>
+                </Submit>
+              </ActionForm>
+            )}
+          </span>
+        ))}
+        <details className="view-save">
+          <summary className="btn btn-secondary btn-sm">
+            <Icon name="plus" /> Save this view
+          </summary>
+          <div className="view-pop card">
+            <ActionForm action={saveView} className="stack" resetOnSuccess>
+                  <input type="hidden" name="slug" value={slug} />
+                  {Object.entries(Object.fromEntries(new URLSearchParams(runQuery(st)))).map(([k, val]) => (
+                    <input key={k} type="hidden" name={k} value={val} />
+                  ))}
+                  <div className="field">
+                    <label htmlFor="v-name">Name</label>
+                    <input id="v-name" name="name" className="input" required maxLength={80} placeholder={`e.g. ${st.grouping.label}, ${st.range?.label ?? "today"}`} />
+                  </div>
+                  {ctx.can("report.edit") && (
+                    <label className="row small" style={{ gap: 8 }}>
+                      <input type="checkbox" name="shared" /> Share with my team
+                    </label>
+                  )}
+                  <p className="small muted" style={{ margin: 0 }}>
+                    Saves the grouping, period, {v.job}, and find text. The numbers stay live: opening the view shows the latest data.
+                  </p>
+                  <div>
+                    <Submit>Save view</Submit>
+                  </div>
+            </ActionForm>
+          </div>
+        </details>
       </div>
 
       <div className="card">
@@ -139,7 +208,7 @@ export default async function RunReport({ params, searchParams }: { params: Prom
             </table>
           </div>
         ) : (
-          <p className="b-empty">Nothing for this period and job.</p>
+          <p className="b-empty">{st.find ? `Nothing contains "${st.find}" for this period.` : `Nothing for this period and ${v.job}.`}</p>
         )}
         {out.rows.length > shown.length && <p className="small muted">Showing the first 500 rows. The download has all {out.rows.length.toLocaleString("en-US")}.</p>}
       </div>

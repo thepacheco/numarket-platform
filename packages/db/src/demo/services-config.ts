@@ -33,7 +33,7 @@ export const SERVICES_SCREENS = [
 
 const S = structure(SERVICES, {
   causes: SERVICES_SCOPE_CAUSES,
-  projectSource: "HubSpot, QuickBooks Online, and your input screens",
+  projectSource: "HubSpot, QuickBooks Online, and your Portal forms",
   ownerReport: { name: "Client report for one project", about: "Sent to the client, in your name or theirs: progress, the project's numbers, budget, scope changes, and what's coming up." },
 });
 export const SERVICES_DASHBOARDS = S.dashboards;
@@ -90,10 +90,10 @@ export const SERVICES_REPORTS = [
 export const SERVICES_CATALOG_TABLES = [
   { dataset: "job_summary", name: "CLEAN.PROJECTS", title: "Projects", description: "Every active project with budget, cost, progress, and status to date.", grain: "One row per active project", sources: "Time entries, QuickBooks Online, project budgets (Google Sheets)" },
   { dataset: "cost_trend", name: "CLEAN.PROJECT_COST_MONTHLY", title: "Project cost by month", description: "Budget for the work done and actual cost for each project, each month.", grain: "One row per project per month", sources: "Time entries, QuickBooks Online bills, project budgets" },
-  { dataset: "change_orders", name: "CLEAN.SCOPE_CHANGES", title: "Scope changes", description: "Approved scope changes with project, cause, and amount.", grain: "One row per project, cause, and month", sources: "Scope change log (input screen)" },
+  { dataset: "change_orders", name: "CLEAN.SCOPE_CHANGES", title: "Scope changes", description: "Approved scope changes with project, cause, and amount.", grain: "One row per project, cause, and month", sources: "Scope change log (Portal form)" },
   { dataset: "rfis", name: "CLEAN.CLIENT_REQUESTS_OPEN", title: "Open client requests", description: "Things the team is waiting on from clients, with age and who they're waiting on.", grain: "One row per open request", sources: "HubSpot tickets" },
   { dataset: "rfi_trend", name: "CLEAN.CLIENT_REQUEST_ACTIVITY", title: "Client request activity", description: "Client requests opened and answered each month.", grain: "One row per project per month", sources: "HubSpot tickets" },
-  { dataset: "field_reports", name: "APP.TIME_ENTRIES", title: "Time entries", description: "Hours entered by consultants in the Portal.", grain: "One row per entry", sources: "Time entry (input screen)" },
+  { dataset: "field_reports", name: "APP.TIME_ENTRIES", title: "Time entries", description: "Hours entered by consultants in the Portal.", grain: "One row per entry", sources: "Time entry (Portal form)" },
   { dataset: "crew_hours_monthly", name: "CLEAN.HOURS_MONTHLY", title: "Billable hours by month", description: "Billable hours and their cost by project and month.", grain: "One row per project per month", sources: "Time entries, payroll rate table" },
   { dataset: "crew_hours", name: "CLEAN.HOURS_THIS_WEEK", title: "Billable hours this week", description: "This week's hours by project and day.", grain: "One row per project per day", sources: "Time entries" },
   { dataset: "pnl", name: "CLEAN.GL_MONTHLY", title: "General ledger by month", description: "Every income and expense account, summed by month.", grain: "One row per account per month", sources: "QuickBooks Online" },
@@ -105,15 +105,15 @@ export const SERVICES_CATALOG_TABLES = [
 ];
 
 export const SERVICES_DEFINITIONS = [
-  { key: "actual", name: "Spent to date", means: "Every cost charged to a project: consultant hours at cost, contractors, and project software. Excludes travel billed back to the client.", formula: "Hours × cost rate + contractor bills + project expenses", sources: "Time entries (input screen) + QuickBooks Online bills", owner: "Finance director" },
+  { key: "actual", name: "Spent to date", means: "Every cost charged to a project: consultant hours at cost, contractors, and project software. Excludes travel billed back to the client.", formula: "Hours × cost rate + contractor bills + project expenses", sources: "Time entries (Portal form) + QuickBooks Online bills", owner: "Finance director" },
   { key: "budget", name: "Budget", means: "The current approved cost budget for the project, including approved scope changes.", formula: "Original budget + approved scope changes", sources: "Project budgets (Google Sheets) + scope change log", owner: "Project management office" },
   { key: "earned", name: "Budget for work done", means: "How much of the budget the work completed so far was supposed to cost.", formula: "Budget × percent complete", sources: "Project budgets + time entries", owner: "Project management office" },
   { key: "cpi", name: "Cost performance", means: "Budget for the work actually done, divided by what it cost. 1.00 or higher means on or under budget.", formula: "Budget for work done ÷ Spent to date", sources: "Project budgets + time entries", owner: "Project management office" },
   { key: "over", name: "Cost vs. budget for work done", means: "What the work done so far cost, minus what it was budgeted to cost. Positive means over budget.", formula: "Spent to date − Budget for work done", sources: "Project budgets + time entries", owner: "Finance director" },
-  { key: "pct_complete", name: "Percent complete", means: "The project manager's latest estimate of how much of the project is done.", formula: "Latest value from time entries", sources: "Time entries (input screen)", owner: "Project managers" },
+  { key: "pct_complete", name: "Percent complete", means: "The project manager's latest estimate of how much of the project is done.", formula: "Latest value from time entries", sources: "Time entries (Portal form)", owner: "Project managers" },
   { key: "rfis", name: "Waiting on client", means: "Things the team asked the client for (access, sign-offs, files) that haven't arrived yet.", formula: "Count of open client requests", sources: "HubSpot tickets", owner: "Project managers" },
-  { key: "change_orders", name: "Scope changes", means: "Approved changes to what the client is buying, grouped by what caused them.", formula: "Sum of approved scope-change amounts", sources: "Scope change log (input screen)", owner: "Project management office" },
-  { key: "crew_hours", name: "Billable hours", means: "Hours consultants logged to client projects.", formula: "Sum of hours from time entries", sources: "Time entries (input screen)", owner: "Project managers" },
+  { key: "change_orders", name: "Scope changes", means: "Approved changes to what the client is buying, grouped by what caused them.", formula: "Sum of approved scope-change amounts", sources: "Scope change log (Portal form)", owner: "Project management office" },
+  { key: "crew_hours", name: "Billable hours", means: "Hours consultants logged to client projects.", formula: "Sum of hours from time entries", sources: "Time entries (Portal form)", owner: "Project managers" },
   { key: "labor_cost", name: "Cost of hours", means: "Hours priced at the blended consultant cost rate.", formula: "Hours × $85 blended cost rate", sources: "Time entries + payroll rate table", owner: "Finance director" },
   { key: "revenue", name: "Revenue", means: "Fees invoiced in the period: project milestones plus retainers and advisory. Excludes reimbursed travel.", formula: "Sum of invoice lines posted to income accounts", sources: "QuickBooks Online invoices", owner: "Finance director" },
   { key: "gross_margin", name: "Gross margin", means: "What's left from fees after the direct cost of delivering the work, as a share of revenue.", formula: "(Revenue − Cost of delivery) ÷ Revenue", sources: "QuickBooks Online profit and loss", owner: "Finance director" },
@@ -127,7 +127,7 @@ export const SERVICES_DEFINITIONS = [
 ];
 
 export const SERVICES_FLAGS = [
-  { title: "22 hours logged to a finished phase on Customer Portal Rebuild.", detail: "Time was entered against Discovery, which was marked complete in August.", source: "Time entries (input screen)", job: "204", severity: "review", question: "Move the hours to Build, or was Discovery reopened?", options: ["Move to Build", "Discovery was reopened"] },
+  { title: "22 hours logged to a finished phase on Customer Portal Rebuild.", detail: "Time was entered against Discovery, which was marked complete in August.", source: "Time entries (Portal form)", job: "204", severity: "review", question: "Move the hours to Build, or was Discovery reopened?", options: ["Move to Build", "Discovery was reopened"] },
   { title: "A −$1,240 contractor bill on Data Warehouse Migration.", detail: "A negative bill from Atlas Contract Staffing posted on Oct 2 with no linked credit.", source: "QuickBooks Online", job: "212", severity: "review", question: "A real credit, or an entry error?", options: ["Real credit", "Entry error — fix in QuickBooks"] },
   { title: "Milestone 3 on ERP Rollout was invoiced twice.", detail: "Two invoices for $38,500, Sept 30 and Oct 1, with the same milestone description.", source: "QuickBooks Online", job: "201", severity: "urgent", question: "Two milestones, or the same one twice?", options: ["Two milestones", "Invoiced twice — void one in QuickBooks"] },
   { title: "A won HubSpot deal isn't linked to a project.", detail: "The Ashford County Schools phase 2 deal was marked won without a project code.", source: "HubSpot", job: null, severity: "review", question: "Which project does it belong to?", options: ["Operations Redesign", "A new project"] },
@@ -139,7 +139,7 @@ export const SERVICES_SOURCES = [
   { provider: "quickbooks_online", name: "QuickBooks Online", tier: "A", connection: "Official connection (read-only)", status: "healthy", rows: 46_120, streams: ["Invoices", "Bills", "Journal entries", "Customers", "Vendors", "Classes"] },
   { provider: "hubspot", name: "HubSpot", tier: "A", connection: "Official connection (read-only)", status: "healthy", rows: 12_480, streams: ["Deals", "Companies", "Contacts", "Tickets"] },
   { provider: "google_drive", name: "Project budgets (Google Sheets)", tier: "A", connection: "Folder sync (read-only)", status: "healthy", rows: 640, streams: ["Project budgets"] },
-  { provider: "portal", name: "Input screens (this Portal)", tier: "internal", connection: "Entered by your team", status: "healthy", rows: 0, streams: ["Time entries", "Scope change log"] },
+  { provider: "portal", name: "Forms (this Portal)", tier: "internal", connection: "Entered by your team", status: "healthy", rows: 0, streams: ["Time entries", "Scope change log"] },
   { provider: "gusto", name: "Gusto payroll", tier: "A", connection: "Official connection (read-only)", status: "reconnect", rows: 3_960, streams: ["Payroll runs", "Hours", "Departments"] },
 ];
 
@@ -150,9 +150,9 @@ export const SERVICES_CHECKS = [
   { name: "Client names match across systems", source: "QuickBooks Online + HubSpot", status: "pass", detail: "38 clients matched. 1 matched automatically this week." },
   { name: "Project codes match across systems", source: "QuickBooks Online + HubSpot", status: "pass", detail: "All 5 active projects match." },
   { name: "No negative bills without a credit", source: "QuickBooks Online", status: "warn", detail: "1 negative bill with no credit (see Flags)." },
-  { name: "Scope changes have a cause", source: "Input screens", status: "pass", detail: "All approved scope changes have a cause." },
+  { name: "Scope changes have a cause", source: "Portal forms", status: "pass", detail: "All approved scope changes have a cause." },
   { name: "Won deals are linked to a project", source: "HubSpot", status: "warn", detail: "1 won deal has no project (see Flags)." },
-  { name: "Time entries within normal hours", source: "Input screens", status: "pass", detail: "No one logged more than 16 hours in a day." },
+  { name: "Time entries within normal hours", source: "Portal forms", status: "pass", detail: "No one logged more than 16 hours in a day." },
   { name: "Totals match the source", source: "QuickBooks Online", status: "pass", detail: "Invoice and bill totals match QuickBooks to the cent." },
   { name: "Data arrived on schedule", source: "All sources", status: "pass", detail: "Every scheduled update ran in the last 24 hours, except Gusto payroll." },
   { name: "Payroll connection is current", source: "Gusto payroll", status: "fail", detail: "The connection expired. An admin needs to reconnect it." },

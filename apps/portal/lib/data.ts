@@ -69,7 +69,8 @@ export function ago(d: Date | string) {
   if (s < 60) return "just now";
   if (s < 3600) return `${Math.round(s / 60)} min ago`;
   if (s < 86400) return `${Math.round(s / 3600)} hr ago`;
-  return `${Math.round(s / 86400)} days ago`;
+  const days = Math.round(s / 86400);
+  return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
 export function todayIn(tz: string) {

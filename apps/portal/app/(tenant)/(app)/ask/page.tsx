@@ -4,7 +4,8 @@ import { vocabFor } from "@numarket/db/demo/vocab";
 import { TIER_LIMITS } from "@numarket/metering";
 import AskBox from "@/components/AskBox";
 import { suggestedFor } from "@/lib/ask";
-import { fmtDateTime, workspace } from "@/lib/data";
+import { recentQuestions } from "@/lib/askHistory";
+import { ago, fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { askQuestion } from "../../actions";
 
@@ -16,7 +17,14 @@ export default async function AskPage() {
   const ws = await workspace(ctx);
   const defs = Object.fromEntries(Object.values(ws.defs).map((d) => [d.name, d.means]));
   const quota = TIER_LIMITS[ctx.tenant.tier].askQuestionsPerMonth;
-  const used = await withTenant(ctx.tenant.id, async (db) => (await db.query<{ n: number }>("select count(*)::int as n from audit_log where action = 'ask.question' and at >= date_trunc('month', now())")).rows[0].n, { userId: ctx.user.id });
+  const { used, history } = await withTenant(
+    ctx.tenant.id,
+    async (db) => ({
+      used: (await db.query<{ n: number }>("select count(*)::int as n from audit_log where action = 'ask.question' and at >= date_trunc('month', now())")).rows[0].n,
+      history: (await recentQuestions(db, ctx)).map((h) => ({ q: h.q, when: ago(h.at), answered: h.answered })),
+    }),
+    { userId: ctx.user.id },
+  );
   return (
     <>
       <div className="page-head">
@@ -28,7 +36,7 @@ export default async function AskPage() {
             {ws.snapshot && <span className="muted"> Data updated {fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone)}.</span>}
           </p>
         </div>
-        <div className="quota" title="Questions run on small summary tables in your private database, with a monthly allowance so the cost stays predictable.">
+        <div className="quota" data-tip="Questions run on small summary tables in your private database, with a monthly allowance so the cost stays predictable.">
           <span className="small muted">Questions this month</span>
           <b className="tnum">
             {used.toLocaleString("en-US")}
@@ -42,7 +50,7 @@ export default async function AskPage() {
         </div>
       </div>
       {ctx.scope && <p className="notice">Your access covers your {v.jobs} only, so company-wide questions (cash, revenue, who owes what) aren&apos;t answered for you.</p>}
-      <AskBox action={askQuestion} suggested={suggestedFor(v, !!ctx.scope)} defs={defs} />
+      <AskBox action={askQuestion} suggested={suggestedFor(v, !!ctx.scope)} defs={defs} history={history} />
       <p className="small muted" style={{ marginTop: 18, maxWidth: "72ch" }}>
         {ctx.tenant.isDemo
           ? "In this demo, Ask Your Data answers the common question types shown above. In your workspace it runs on AI inside your own private database, reads only your governed summary tables and definitions, and shows how each answer was worked out."

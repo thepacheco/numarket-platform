@@ -2,7 +2,9 @@ import Link from "next/link";
 import { brandVars } from "@numarket/ui";
 import Icon from "@/components/Icon";
 import Rail from "@/components/Rail";
+import Tooltips from "@/components/Tooltips";
 import { requireTenant } from "@/lib/guard";
+import { syncAlerts } from "@/lib/alertsSync";
 import { fmtDateTime, fmtTime, jobsInScope, workspace } from "@/lib/data";
 import { canSeeSettings, navFor, ROLE_LABEL, scopeLabel } from "@/lib/nav";
 import { MARKETING_URL } from "@/lib/request";
@@ -12,6 +14,7 @@ import { MARKETING_URL } from "@/lib/request";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireTenant();
   const ws = await workspace(ctx);
+  const alerts = await syncAlerts(ctx);
   const b = ws.branding;
   const sections = navFor(ctx);
   const jobs = Object.fromEntries(jobsInScope(ws.snapshot?.datasets, { ...ctx, scope: null }).map((j) => [j.code, j.name]));
@@ -58,10 +61,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="brand-name">{b?.display_name ?? ctx.tenant.name}</span>
         </Link>
         <div className="grow" />
-        <span className="stamp" title={`Dashboards and reports show data published ${updated}. Next scheduled update: ${fmtTime(ws.nextUpdate, tz)}.`}>
+        <span className="stamp" data-tip-title="When your data last updated" data-tip={`Dashboards and reports show data published ${updated}. Next scheduled update: ${fmtTime(ws.nextUpdate, tz)}.`}>
           <i aria-hidden="true" />
           <span className="stamp-text">Data updated</span> {updated}
         </span>
+        {(ctx.can("alert.manage_own") || ctx.can("alert.manage_all")) && (
+          <Link href="/alerts" className="bell" aria-label={alerts.unread ? `${alerts.unread} new alerts` : "Alerts"} data-tip={alerts.unread ? `${alerts.unread} new ${alerts.unread === 1 ? "alert" : "alerts"}. Open to see them.` : "Your alerts. Nothing new."}>
+            <Icon name="bell" />
+            {alerts.unread > 0 && <span className="bell-n">{alerts.unread > 9 ? "9+" : alerts.unread}</span>}
+          </Link>
+        )}
         <details className="menu">
           <summary aria-label="Account menu">
             <span className="avatar">{initials}</span>
@@ -97,6 +106,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           {children}
         </main>
       </div>
+      <Tooltips />
     </div>
   );
 }

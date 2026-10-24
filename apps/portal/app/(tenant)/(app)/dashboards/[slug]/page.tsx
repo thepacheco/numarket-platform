@@ -6,6 +6,7 @@ import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import { getDashboard, getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
 import AskBox from "@/components/AskBox";
+import AskDrawer from "@/components/AskDrawer";
 import { asOfMonth, dashState, DashboardView, stateQuery, type Params } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
 import { suggestedFor } from "@/lib/ask";
@@ -54,11 +55,21 @@ export default async function DashboardPage({ params, searchParams }: { params: 
             </p>
           </div>
         </div>
-        {canExport && hasTables && (
-          <a className="btn btn-secondary btn-sm" href={`/dashboards/${slug}/export?${stateQuery(state)}`}>
-            <Icon name="download" /> Export this page (CSV)
-          </a>
-        )}
+        <div className="dash-actions">
+          {canExport && hasTables && (
+            <a className="btn btn-secondary btn-sm" href={`/dashboards/${slug}/export?${stateQuery(state)}`} data-tip="Download the tables on this page, with the filters you've set, as a CSV file for Excel">
+              <Icon name="download" /> Export (CSV)
+            </a>
+          )}
+          {ws.snapshot && ctx.can("ask.use") && (
+            <AskDrawer title="Ask about this dashboard">
+              <AskBox action={askQuestion} suggested={suggestedFor(v, !!ctx.scope, kind).slice(0, 4)} defs={Object.fromEntries(Object.values(ws.defs).map((d) => [d.name, d.means]))} placeholder={kind === "financials" ? "e.g. Who owes us money over 60 days?" : `e.g. Which ${v.jobs} are over budget?`} />
+              <p className="small muted" style={{ margin: "12px 0 0" }}>
+                Answers come from the same data as this dashboard, limited to what you&apos;re allowed to see. <Link href="/ask">See all your questions</Link>
+              </p>
+            </AskDrawer>
+          )}
+        </div>
       </div>
       {ws.snapshot ? (
         <DashboardView
@@ -98,14 +109,6 @@ export default async function DashboardPage({ params, searchParams }: { params: 
         />
       ) : (
         <p className="notice">No data has been published yet.</p>
-      )}
-      {ws.snapshot && ctx.can("ask.use") && (
-        <section className="card dash-ask">
-          <h2>
-            <Icon name="chat" /> Ask about this dashboard
-          </h2>
-          <AskBox action={askQuestion} compact suggested={suggestedFor(v, !!ctx.scope, kind).slice(0, 4)} defs={Object.fromEntries(Object.values(ws.defs).map((d) => [d.name, d.means]))} placeholder={kind === "financials" ? "e.g. Who owes us money over 60 days?" : `e.g. Which ${v.jobs} are over budget?`} />
-        </section>
       )}
     </>
   );

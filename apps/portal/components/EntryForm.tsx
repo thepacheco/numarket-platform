@@ -5,12 +5,13 @@ import ActionForm, { Submit, type ActionResult } from "./ActionForm";
 type Field = { key: string; label: string; type: "select" | "date" | "number" | "text"; required?: boolean; options?: string[] | "jobs"; min?: number; max?: number; step?: number; maxLength?: number; help?: string };
 
 /* An input screen, phone-first. The server validates everything again. */
-export default function EntryForm({ action, screen, fields, jobs, today }: { action: (p: ActionResult | null, f: FormData) => Promise<ActionResult>; screen: string; fields: Field[]; jobs: { code: string; name: string }[]; today: string }) {
+export default function EntryForm({ action, screen, fields, jobs, today, defaults, via, submitLabel = "Save entry" }: { action: (p: ActionResult | null, f: FormData) => Promise<ActionResult>; screen: string; fields: Field[]; jobs: { code: string; name: string }[]; today: string; defaults?: Record<string, string>; via?: string; submitLabel?: string }) {
   return (
     <ActionForm action={action} className="stack" resetOnSuccess>
       {(errors) => (
         <>
           <input type="hidden" name="screen" value={screen} />
+          {via && <input type="hidden" name="via" value={via} />}
           {fields.map((f) => {
             const id = `f-${f.key}`;
             const err = errors[f.key];
@@ -22,7 +23,7 @@ export default function EntryForm({ action, screen, fields, jobs, today }: { act
                   {!f.required && <span className="muted" style={{ fontWeight: 400 }}> (optional)</span>}
                 </label>
                 {f.type === "select" ? (
-                  <select {...common} defaultValue={f.options === "jobs" && jobs.length === 1 ? jobs[0].code : ""}>
+                  <select {...common} defaultValue={defaults?.[f.key] ?? (f.options === "jobs" && jobs.length === 1 ? jobs[0].code : "")}>
                     <option value="" disabled>
                       Choose…
                     </option>
@@ -39,7 +40,7 @@ export default function EntryForm({ action, screen, fields, jobs, today }: { act
                         ))}
                   </select>
                 ) : f.type === "text" && (f.maxLength ?? 0) > 120 ? (
-                  <textarea {...common} maxLength={f.maxLength} rows={3} />
+                  <textarea {...common} maxLength={f.maxLength} rows={3} defaultValue={defaults?.[f.key]} />
                 ) : (
                   <input
                     {...common}
@@ -49,7 +50,7 @@ export default function EntryForm({ action, screen, fields, jobs, today }: { act
                     max={f.type === "number" ? f.max : f.type === "date" ? today : undefined}
                     step={f.step}
                     maxLength={f.maxLength}
-                    defaultValue={f.type === "date" ? today : undefined}
+                    defaultValue={defaults?.[f.key] ?? (f.type === "date" ? today : undefined)}
                   />
                 )}
                 {(err || f.help) && (
@@ -61,7 +62,7 @@ export default function EntryForm({ action, screen, fields, jobs, today }: { act
             );
           })}
           <div>
-            <Submit>Save entry</Submit>
+            <Submit>{submitLabel}</Submit>
           </div>
         </>
       )}

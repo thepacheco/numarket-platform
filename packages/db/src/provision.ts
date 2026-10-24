@@ -1,4 +1,5 @@
 import { withProvisioner, type Db } from "./client";
+import { sampleAlerts, sampleApps } from "./demo/apps";
 import { packFor, type Pack } from "./demo/packs";
 import { latestSnapshot } from "./repo/snapshots";
 import { publishSimulated } from "./repo/snapshots";
@@ -101,6 +102,7 @@ export async function provisionSampleTenant(spec: SampleTenantSpec): Promise<str
   await withProvisioner(async (db) => {
     await publishSimulated(db, { id: tenantId, slug: spec.slug, isDemo: spec.isDemo, industry: spec.industry }, "reset", null);
     await seedReviews(db, tenantId, packFor(spec.industry));
+    if (spec.isDemo) await seedApps(db, packFor(spec.industry));
   }, { tenantId });
   return tenantId;
 }
@@ -193,6 +195,26 @@ async function seedReviews(db: Db, tenantId: string, pack: Pack) {
   }
 }
 
+/* Example Engineering apps open with a few records: approvals waiting and
+   estimates in progress. Sample workspaces only. */
+async function seedApps(db: Db, pack: Pack) {
+  await db.query("delete from app_records");
+  const { approvals, estimates } = sampleApps(pack.industry);
+  const rows = [...approvals.map((a) => ({ ...a, app: "approvals" })), ...estimates.map((e) => ({ ...e, app: "estimates" }))];
+  for (const r of rows) {
+    const u = await db.query<{ id: string }>("select id from users where email = $1", [r.by]);
+    const at = new Date(Date.now() - r.daysAgo * 86_400_000);
+    await db.query("insert into app_records (tenant_id, app, status, data, created_by, created_at, updated_by, updated_at) values (current_tenant(), $1, $2, $3, $4, $5, $4, $5)", [r.app, r.status, JSON.stringify(r.data), u.rows[0]?.id ?? null, at]);
+  }
+  /* sample alerts; email stays off, since the sample people aren't real */
+  await db.query("delete from notifications");
+  await db.query("delete from alert_rules");
+  for (const a of sampleAlerts(pack.industry)) {
+    const u = await db.query<{ id: string }>("select id from users where email = $1", [a.by]);
+    if (u.rows[0]) await db.query("insert into alert_rules (tenant_id, user_id, kind, params, email) values (current_tenant(), $1, $2, $3, false)", [u.rows[0].id, a.kind, JSON.stringify(a.params)]);
+  }
+}
+
 /* Nightly (and on demand from the ops console): put the demo workspace back
    to its starting state. Only ever runs on tenants flagged is_demo. */
 export async function resetDemoTenant(tenantId: string) {
@@ -201,7 +223,7 @@ export async function resetDemoTenant(tenantId: string) {
       const t = await db.query<{ slug: string; is_demo: boolean; industry: string }>("select slug, is_demo, industry from tenants where id = $1", [tenantId]);
       if (!t.rows[0]?.is_demo) throw new Error("resetDemoTenant: not a demo tenant");
       const pack = packFor(t.rows[0].industry);
-      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "saved_views", "app_records", "action_status", "snapshots", "refresh_runs", "audit_log"]) {
+      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "saved_views", "app_records", "action_status", "notifications", "alert_rules", "snapshots", "refresh_runs", "audit_log"]) {
         await db.query(`delete from ${table}`);
       }
       await db.query("update branding set primary_color = '#22577A', accent_color = '#38A3A5', display_name = (select name from tenants where id = $1)", [tenantId]);
@@ -209,6 +231,7 @@ export async function resetDemoTenant(tenantId: string) {
       await seedContent(db, tenantId, pack);
       await publishSimulated(db, { id: tenantId, slug: t.rows[0].slug, isDemo: true, industry: t.rows[0].industry }, "reset", null);
       await seedReviews(db, tenantId, pack);
+      await seedApps(db, pack);
     },
     { tenantId },
   );

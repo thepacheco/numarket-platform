@@ -217,7 +217,7 @@ export default async function Home() {
           <section className="card c-5">
             <div className="panel-h">
               <h2>Your entries</h2>
-              <Link href="/inputs">Input screens</Link>
+              <Link href="/inputs">Forms</Link>
             </div>
             {data.mine.length ? (
               <ul className="list small">

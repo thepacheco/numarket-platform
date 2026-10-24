@@ -25,7 +25,7 @@ export default async function UploadPage({ searchParams }: { searchParams: Promi
         <div>
           <p className="eyebrow">Foundation</p>
           <h1>Upload files</h1>
-          <p>For data that lives in spreadsheets or another system&apos;s export. Download a template, fill it in, and upload it. Every row is checked the same way as the input screens.</p>
+          <p>For data that lives in spreadsheets or another system&apos;s export. Download a template, fill it in, and upload it. Every row is checked the same way as the forms.</p>
         </div>
       </div>
       {ctx.tenant.sandboxUntil && <p className="notice">Uploads are turned off in this sandbox, so real files stay out of it. You can still download the templates and see how the check works in your own workspace.</p>}

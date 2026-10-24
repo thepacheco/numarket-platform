@@ -77,6 +77,8 @@ describe("roles", () => {
     expect(can("viewer", "flags.view")).toBe(false);
     expect(can("editor", "flags.view")).toBe(true);
     expect(can("viewer", "ask.use")).toBe(true);
+    expect(can("viewer", "alert.manage_own")).toBe(true);
+    expect(can("viewer", "alert.manage_all")).toBe(false);
     expect(can("admin", "sources.view")).toBe(true);
   });
   it("Contributors can only enter data", () => {

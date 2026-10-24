@@ -36,7 +36,7 @@ export const SCREENS = [
 
 const S = structure(CONSTRUCTION, {
   causes: CO_CAUSES,
-  projectSource: "Procore, QuickBooks Online, and your input screens",
+  projectSource: "Procore, QuickBooks Online, and your Portal forms",
   ownerReport: { name: "Owner report for one job", about: "Sent to the project owner, in their name: progress, the job's numbers, cost against budget, change orders, and what's coming up." },
 });
 export const DASHBOARDS = S.dashboards;
@@ -94,10 +94,10 @@ export const REPORTS = [
 export const CATALOG_TABLES = [
   { dataset: "job_summary", name: "CLEAN.JOBS", title: "Jobs", description: "Every active job with budget, cost, progress, and status to date.", grain: "One row per active job", sources: "Procore, QuickBooks Online, Excel budgets" },
   { dataset: "cost_trend", name: "CLEAN.JOB_COST_MONTHLY", title: "Job cost by month", description: "Budget for the work done and actual cost for each job, each month.", grain: "One row per job per month", sources: "QuickBooks Online job costs, Excel budgets" },
-  { dataset: "change_orders", name: "CLEAN.CHANGE_ORDERS", title: "Change orders", description: "Approved change orders with job, cause, and amount.", grain: "One row per job, cause, and month", sources: "Procore, change order log (input screen)" },
+  { dataset: "change_orders", name: "CLEAN.CHANGE_ORDERS", title: "Change orders", description: "Approved change orders with job, cause, and amount.", grain: "One row per job, cause, and month", sources: "Procore, change order log (Portal form)" },
   { dataset: "rfis", name: "CLEAN.RFIS_OPEN", title: "Open RFIs", description: "RFIs not yet answered, with age and who they're waiting on.", grain: "One row per open RFI", sources: "Procore" },
   { dataset: "rfi_trend", name: "CLEAN.RFI_ACTIVITY_MONTHLY", title: "RFI activity", description: "RFIs opened and answered each month.", grain: "One row per job per month", sources: "Procore" },
-  { dataset: "field_reports", name: "APP.FIELD_REPORTS", title: "Field reports", description: "Daily field reports entered by your superintendents in the Portal.", grain: "One row per report", sources: "Daily field report (input screen)" },
+  { dataset: "field_reports", name: "APP.FIELD_REPORTS", title: "Field reports", description: "Daily field reports entered by your superintendents in the Portal.", grain: "One row per report", sources: "Daily field report (Portal form)" },
   { dataset: "crew_hours_monthly", name: "CLEAN.CREW_HOURS_MONTHLY", title: "Crew hours by month", description: "Field crew hours and labor cost by job and month.", grain: "One row per job per month", sources: "Field reports, payroll rate table" },
   { dataset: "crew_hours", name: "CLEAN.CREW_HOURS_THIS_WEEK", title: "Crew hours this week", description: "This week's crew hours by job and day.", grain: "One row per job per day", sources: "Field reports" },
   { dataset: "pnl", name: "CLEAN.GL_MONTHLY", title: "General ledger by month", description: "Every income and expense account, summed by month.", grain: "One row per account per month", sources: "QuickBooks Online" },
@@ -114,10 +114,10 @@ export const DEFINITIONS = [
   { key: "earned", name: "Budget for work done", means: "How much of the budget the work completed so far was supposed to cost.", formula: "Budget × percent complete", sources: "Excel budgets + daily field reports", owner: "Project controls" },
   { key: "cpi", name: "Cost performance", means: "Budget for the work actually done, divided by what it cost. 1.00 or higher means on or under budget.", formula: "Budget for work done ÷ Spent to date", sources: "Excel budgets + QuickBooks Online job costs", owner: "Project controls" },
   { key: "over", name: "Cost vs. budget for work done", means: "What the work done so far cost, minus what it was budgeted to cost. Positive means over budget.", formula: "Spent to date − Budget for work done", sources: "Excel budgets + QuickBooks Online job costs", owner: "Finance lead" },
-  { key: "pct_complete", name: "Percent complete", means: "The superintendent's latest estimate of how much of the job is done.", formula: "Latest value from the daily field report", sources: "Daily field reports (input screen)", owner: "Superintendents" },
+  { key: "pct_complete", name: "Percent complete", means: "The superintendent's latest estimate of how much of the job is done.", formula: "Latest value from the daily field report", sources: "Daily field reports (Portal form)", owner: "Superintendents" },
   { key: "rfis", name: "Open RFIs", means: "Requests for information sent to the design team and not yet answered.", formula: "Count of RFIs with status Open", sources: "Procore RFIs", owner: "PM team" },
-  { key: "change_orders", name: "Change orders", means: "Approved change orders, grouped by what caused them.", formula: "Sum of approved change-order amounts", sources: "Procore change orders + change order log (input screen)", owner: "Project controls" },
-  { key: "crew_hours", name: "Crew hours", means: "Total hours worked by field crews, as reported each day.", formula: "Sum of crew hours from daily field reports", sources: "Daily field reports (input screen)", owner: "Superintendents" },
+  { key: "change_orders", name: "Change orders", means: "Approved change orders, grouped by what caused them.", formula: "Sum of approved change-order amounts", sources: "Procore change orders + change order log (Portal form)", owner: "Project controls" },
+  { key: "crew_hours", name: "Crew hours", means: "Total hours worked by field crews, as reported each day.", formula: "Sum of crew hours from daily field reports", sources: "Daily field reports (Portal form)", owner: "Superintendents" },
   { key: "revenue", name: "Revenue", means: "Income invoiced in the period: contract billings plus service and small projects. Excludes sales tax.", formula: "Sum of invoice lines posted to income accounts", sources: "QuickBooks Online invoices", owner: "Finance lead" },
   { key: "gross_margin", name: "Gross margin", means: "What's left from revenue after the direct cost of doing the work, as a share of revenue.", formula: "(Revenue − Cost of goods sold) ÷ Revenue", sources: "QuickBooks Online profit and loss", owner: "Finance lead" },
   { key: "opex", name: "Operating expenses", means: "Costs of running the company that aren't tied to one job: office salaries, rent, insurance, vehicles, software.", formula: "Sum of expense accounts outside cost of goods sold", sources: "QuickBooks Online profit and loss", owner: "Finance lead" },
@@ -143,7 +143,7 @@ export const SOURCES = [
   { provider: "quickbooks_online", name: "QuickBooks Online", tier: "A", connection: "Official connection (read-only)", status: "healthy", rows: 184_220, streams: ["Bills", "Invoices", "Journal entries", "Vendors", "Customers", "Classes"] },
   { provider: "procore", name: "Procore", tier: "A", connection: "Official connection (read-only)", status: "healthy", rows: 52_880, streams: ["Projects", "Budgets", "Commitments", "Change orders", "RFIs"] },
   { provider: "sharepoint", name: "Excel budgets (SharePoint folder)", tier: "A", connection: "Folder sync (read-only)", status: "healthy", rows: 1_240, streams: ["Job budgets"] },
-  { provider: "portal", name: "Input screens (this Portal)", tier: "internal", connection: "Entered by your team", status: "healthy", rows: 0, streams: ["Daily field reports", "Change order log"] },
+  { provider: "portal", name: "Forms (this Portal)", tier: "internal", connection: "Entered by your team", status: "healthy", rows: 0, streams: ["Daily field reports", "Change order log"] },
   { provider: "adp", name: "ADP payroll", tier: "A", connection: "Official connection (read-only)", status: "reconnect", rows: 8_410, streams: ["Pay rates", "Hours"] },
 ];
 
@@ -156,7 +156,7 @@ export const CHECKS = [
   { name: "No negative costs without a credit memo", source: "QuickBooks Online", status: "warn", detail: "1 negative cost with no credit memo (see Flags)." },
   { name: "Change orders have a cause", source: "Procore", status: "pass", detail: "All 63 approved change orders have a cause." },
   { name: "RFIs are linked to a job", source: "Procore", status: "warn", detail: "1 RFI has no job (see Flags)." },
-  { name: "Field reports within normal hours", source: "Input screens", status: "pass", detail: "No crew-hour entries above 400 hours in a day." },
+  { name: "Field reports within normal hours", source: "Portal forms", status: "pass", detail: "No crew-hour entries above 400 hours in a day." },
   { name: "Totals match the source", source: "QuickBooks Online", status: "pass", detail: "Job-cost totals match QuickBooks to the cent." },
   { name: "Data arrived on schedule", source: "All sources", status: "pass", detail: "Every scheduled update ran in the last 24 hours, except ADP payroll." },
   { name: "Payroll connection is current", source: "ADP payroll", status: "fail", detail: "The connection expired. An admin needs to reconnect it." },

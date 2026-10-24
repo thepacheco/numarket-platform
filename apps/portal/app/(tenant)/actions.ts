@@ -6,7 +6,7 @@ import { withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
 import { getPolicy, updateBranding, updateMember, updatePolicy } from "@numarket/db/repo/admin";
 import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllowed } from "@numarket/db/repo/snapshots";
-import { addSource, getHomeLayout, createReport, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
+import { addSource, getHomeLayout, createReport, listActionItems, setActionStatus, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
 import { REPORT_TEMPLATES } from "@numarket/db/demo/config";
 import { companyDatasets, toLayout } from "@/lib/reportDesign";
 import { updateNowLimit } from "@numarket/metering";
@@ -43,14 +43,16 @@ export async function submitEntry(_: ActionResult | null, form: FormData): Promi
     const slug = str(form, "screen");
     return withTenant(ctx.tenant.id, async (db) => {
       const screen = await getScreen(db, slug);
-      if (!screen) throw new ActionError("That input screen doesn't exist.");
+      if (!screen) throw new ActionError("That form doesn't exist.");
       const snap = await latestSnapshot(db);
       const jobs = jobsInScope(snap?.datasets, ctx).map((j) => j.code);
       const raw = Object.fromEntries(screen.fields.map((f) => [f.key, str(form, f.key)]));
       const v = validateEntry(screen.fields, raw, { jobs, today: todayIn(ctx.tenant.timezone) });
       if (!v.ok) return { ok: false, message: "Please fix the highlighted fields.", errors: v.errors };
-      const id = await insertEntry(db, slug, v.data, ctx.user.id);
-      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "input.submit", target: slug, detail: { entry: id }, ip: meta.ip });
+      /* entries read from a scanned paper form say so, for the record */
+      const via = str(form, "via") === "scan" ? { via: "scan" } : {};
+      const id = await insertEntry(db, slug, { ...v.data, ...via }, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "input.submit", target: slug, detail: { entry: id, ...via }, ip: meta.ip });
       revalidatePath("/", "layout");
       return { ok: true, message: "Saved. It's in your entries now and will appear in dashboards at the next update." };
     }, { userId: ctx.user.id });
@@ -62,7 +64,7 @@ export async function uploadFile(_: UploadResult | null, form: FormData): Promis
   try {
     const { ctx, meta } = await tenantOrThrow("input.submit");
     /* sandboxes hold a prospect's name but must never hold their real files */
-    if (ctx.tenant.sandboxUntil) return { ok: false, message: "Uploads are turned off in sandboxes, so real files stay out of it. Try the input screens instead; uploads open in your own workspace." };
+    if (ctx.tenant.sandboxUntil) return { ok: false, message: "Uploads are turned off in sandboxes, so real files stay out of it. Try the forms instead; uploads open in your own workspace." };
     const slug = str(form, "screen");
     const intent = str(form, "intent") === "import" ? "import" : "check";
     const text = String(form.get("csv") ?? "");
@@ -178,8 +180,10 @@ export async function askQuestion(prev: AskState | null, form: FormData): Promis
     if (!ws.snapshot) return { items, error: "Your data hasn't had its first update yet." };
     const names = Object.fromEntries(jobsInScope(ws.snapshot.datasets, ctx).map((j) => [j.code, j.name]));
     const scopeNames = ctx.scope ? ctx.scope.values.map((v) => names[v] ?? `job ${v}`).join(", ") : "";
+    /* in the shared demo, history is per browser session (see lib/askHistory) */
+    const tag = ctx.tenant.isDemo ? { tag: (await import("@/lib/askHistory")).sessionTag(ctx) } : {};
     const a = answer(question, { datasets: ws.snapshot.datasets, scope: ctx.scope, asOf: asOfMonth(ws.snapshot.published_at, ctx.tenant.timezone) }, scopeNames, vocabFor(ctx.tenant.industry));
-    await withTenant(ctx.tenant.id, (db) => audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "ask.question", target: question.slice(0, 200), detail: { answered: a.ok }, ip: meta.ip }), { userId: ctx.user.id });
+    await withTenant(ctx.tenant.id, (db) => audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "ask.question", target: question.slice(0, 200), detail: { answered: a.ok, ...tag }, ip: meta.ip }), { userId: ctx.user.id });
     return { items: [{ question, answer: a, updated: fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) }, ...items] };
   } catch (e) {
     if (e instanceof ActionError) return { items, error: e.message };
@@ -316,6 +320,31 @@ export async function suggestDefinitionChange(_: ActionResult | null, form: Form
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "definition.suggest", target: key, ip: meta.ip });
       revalidatePath("/definitions");
       return { ok: true, message: "Sent to your numarket analyst." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/* ---------- Insight Review action items ---------- */
+
+/** Move an action item from a review along: open, in progress, done.
+    Admins and owners move any; editors move the ones assigned to them. */
+export async function setActionItem(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("actions.view");
+    const status = str(form, "status");
+    if (status !== "open" && status !== "in_progress" && status !== "done") throw new ActionError("Unknown status.");
+    const reviewId = str(form, "review");
+    const idx = Number(str(form, "idx"));
+    return withTenant(ctx.tenant.id, async (db) => {
+      const item = (await listActionItems(db)).find((a) => a.reviewId === reviewId && a.idx === idx);
+      if (!item) throw new ActionError("That action item doesn't exist.");
+      const mine = item.owner.trim().toLowerCase() === ctx.user.name.trim().toLowerCase();
+      if (!ctx.can("actions.manage") && !(mine && ctx.can("actions.update_own"))) throw new ActionError(mine ? "Your role can't update action items." : `Only ${item.owner} or an admin can update this one.`);
+      await setActionStatus(db, reviewId, idx, status, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "action.status", target: item.title.slice(0, 120), detail: { status }, ip: meta.ip });
+      revalidatePath("/reviews", "layout");
+      revalidatePath("/");
+      return { ok: true, message: status === "done" ? "Marked done. Your analyst will see it." : status === "in_progress" ? "Marked in progress." : "Reopened." };
     }, { userId: ctx.user.id });
   });
 }
@@ -457,5 +486,238 @@ export async function saveBranding(_: ActionResult | null, form: FormData): Prom
       revalidatePath("/", "layout");
       return { ok: true, message: "Branding saved." };
     }, { userId: ctx.user.id });
+  });
+}
+
+/* ---------- Engineering apps ---------- */
+
+function assertEngineering(ctx: { tenant: { products: string[] } }) {
+  if (!ctx.tenant.products.includes("engineering")) throw new ActionError("Apps come with Engineering, which isn't in your plan.");
+}
+const num = (s: string) => (s === "" ? NaN : Number(s));
+
+/** Save an estimate (new, or an update to one you can edit). */
+export async function saveEstimate(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("input.submit");
+    assertEngineering(ctx);
+    const { ESTIMATE_SECTIONS, estimateTotals } = await import("@numarket/db/demo/apps");
+    const sections = ESTIMATE_SECTIONS[ctx.tenant.industry];
+    const name = str(form, "name").slice(0, 120);
+    const customer = str(form, "customer").slice(0, 120);
+    const errors: Record<string, string> = {};
+    if (name.length < 3) errors.name = "Give the estimate a name.";
+    if (customer.length < 2) errors.customer = `Who is it for?`;
+    const pct = (k: string, max: number) => {
+      const x = num(str(form, k));
+      if (!(x >= 0 && x <= max)) errors[k] = `Between 0 and ${max}%.`;
+      return Math.round((x || 0) * 10) / 10;
+    };
+    const overheadPct = pct("overheadPct", 30), contingencyPct = pct("contingencyPct", 25), profitPct = pct("profitPct", 40);
+    let lines: { section: string; description: string; qty: number; unit: string; unitCost: number }[] = [];
+    try {
+      const raw = JSON.parse(str(form, "lines") || "[]") as unknown[];
+      lines = raw.slice(0, 60).map((l) => {
+        const x = l as Record<string, unknown>;
+        return { section: String(x.section ?? ""), description: String(x.description ?? "").trim().slice(0, 140), qty: Number(x.qty), unit: String(x.unit ?? "").trim().slice(0, 20), unitCost: Number(x.unitCost) };
+      });
+    } catch {
+      throw new ActionError("The line items didn't come through. Please try again.");
+    }
+    lines = lines.filter((l) => l.description || l.qty || l.unitCost);
+    if (!lines.length) errors.lines = "Add at least one line.";
+    if (lines.some((l) => !sections.includes(l.section) || !l.description || !(l.qty > 0 && l.qty <= 1_000_000) || !(l.unitCost >= 0 && l.unitCost <= 50_000_000))) errors.lines = "Every line needs a section, a description, a quantity above zero, and a unit cost.";
+    if (Object.keys(errors).length) return { ok: false, message: "Please fix the highlighted fields.", errors };
+    const data = { name, customer, lines, overheadPct, contingencyPct, profitPct, note: str(form, "note").slice(0, 500) || undefined };
+    const total = estimateTotals(data).total;
+    if (total > 500_000_000) return { ok: false, message: "That total is over $500 million. Check the quantities." };
+    const id = str(form, "id");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { getAppRecord, insertAppRecord, updateAppRecord } = await import("@numarket/db/repo/workspace");
+      let recordId = id;
+      if (id) {
+        const rec = await getAppRecord(db, "estimates", id);
+        if (!rec) throw new ActionError("That estimate doesn't exist.");
+        if (rec.created_by !== ctx.user.id && !ctx.can("input.edit_any")) throw new ActionError("Only the person who started this estimate or an admin can change it.");
+        await updateAppRecord(db, id, rec.status, data, ctx.user.id);
+      } else recordId = await insertAppRecord(db, "estimates", "draft", data, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: id ? "app.estimate.update" : "app.estimate.create", target: name, detail: { total: Math.round(total) }, ip: meta.ip });
+      revalidatePath("/apps", "layout");
+      return { ok: true, message: "Saved.", redirect: `/apps/estimates/${recordId}` };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Draft → sent → won or lost. */
+export async function setEstimateStatus(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("input.submit");
+    assertEngineering(ctx);
+    const status = str(form, "status");
+    if (!["draft", "sent", "won", "lost"].includes(status)) throw new ActionError("Unknown status.");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { getAppRecord, updateAppRecord } = await import("@numarket/db/repo/workspace");
+      const rec = await getAppRecord(db, "estimates", str(form, "id"));
+      if (!rec) throw new ActionError("That estimate doesn't exist.");
+      if (rec.created_by !== ctx.user.id && !ctx.can("input.edit_any")) throw new ActionError("Only the person who started this estimate or an admin can change it.");
+      await updateAppRecord(db, rec.id, status, null, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "app.estimate.status", target: String(rec.data.name ?? "").slice(0, 120), detail: { status }, ip: meta.ip });
+      revalidatePath("/apps", "layout");
+      return { ok: true, message: status === "won" ? "Marked won." : status === "lost" ? "Marked lost." : status === "sent" ? "Marked sent." : "Back to draft." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Ask for a change order (or scope change) to be approved. */
+export async function requestApproval(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("input.submit");
+    assertEngineering(ctx);
+    const { packFor } = await import("@numarket/db/demo/packs");
+    const pack = packFor(ctx.tenant.industry);
+    return withTenant(ctx.tenant.id, async (db) => {
+      const screen = await getScreen(db, pack.screenSlugs.co);
+      if (!screen) throw new ActionError(`The ${pack.vocab.changeOrder} log isn't set up.`);
+      const snap = await latestSnapshot(db);
+      const jobs = jobsInScope(snap?.datasets, ctx).map((j) => j.code);
+      const raw = { job: str(form, "job"), cause: str(form, "cause"), amount: str(form, "amount"), description: str(form, "title") };
+      const v = validateEntry(screen.fields, raw, { jobs, today: todayIn(ctx.tenant.timezone) });
+      const reason = str(form, "reason").slice(0, 600);
+      const errors: Record<string, string> = { ...(v.ok ? {} : Object.fromEntries(Object.entries(v.errors).map(([k, e]) => [k === "description" ? "title" : k, e]))) };
+      if (reason.length < 5) errors.reason = "Say why, in a sentence.";
+      if (Object.keys(errors).length || !v.ok) return { ok: false, message: "Please fix the highlighted fields.", errors };
+      const { insertAppRecord } = await import("@numarket/db/repo/workspace");
+      const data = { job: raw.job, title: raw.description, cause: raw.cause, amount: Number(v.data.amount), reason };
+      await insertAppRecord(db, "approvals", "pending", data, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "app.approval.request", target: data.title.slice(0, 120), detail: { job: data.job, amount: data.amount }, ip: meta.ip });
+      revalidatePath("/apps", "layout");
+      revalidatePath("/");
+      return { ok: true, message: "Sent for approval." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Approve or reject. Approved ones go into the change order log, which feeds the dashboards. */
+export async function decideApproval(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("input.approve");
+    assertEngineering(ctx);
+    const decision = str(form, "decision");
+    if (decision !== "approved" && decision !== "rejected") throw new ActionError("Approve or reject.");
+    const note = str(form, "note").slice(0, 400);
+    const { packFor } = await import("@numarket/db/demo/packs");
+    const pack = packFor(ctx.tenant.industry);
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { getAppRecord, updateAppRecord } = await import("@numarket/db/repo/workspace");
+      const rec = await getAppRecord(db, "approvals", str(form, "id"));
+      if (!rec) throw new ActionError("That request doesn't exist.");
+      if (rec.status !== "pending") throw new ActionError("That one has already been decided.");
+      const d = rec.data as { job: string; title: string; cause: string; amount: number };
+      if (ctx.scope && !ctx.scope.values.includes(d.job)) throw new ActionError("That request is outside your data scope.");
+      await updateAppRecord(db, rec.id, decision, { ...rec.data, decision_note: note || undefined, decided_by_name: ctx.user.name }, ctx.user.id);
+      if (decision === "approved") await insertEntry(db, pack.screenSlugs.co, { job: d.job, cause: d.cause, amount: d.amount, description: d.title.slice(0, 200), via: "approval" }, ctx.user.id);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: `app.approval.${decision}`, target: d.title.slice(0, 120), detail: { job: d.job, amount: d.amount }, ip: meta.ip });
+      revalidatePath("/", "layout");
+      return { ok: true, message: decision === "approved" ? `Approved. It's in the ${pack.vocab.changeOrder} log and will show on dashboards at the next update.` : "Rejected. The requester will see your note." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/* ---------- saved report views ---------- */
+
+const VIEW_KEYS = ["group", "range", "from", "to", "job", "find"] as const;
+
+/** Save the filters on a Run-a-report page under a name, for yourself or the team. */
+export async function saveView(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("dashboard.view");
+    const name = str(form, "name").slice(0, 80);
+    if (name.length < 2) return { ok: false, message: "Give the view a name.", errors: { name: "Required." } };
+    const slug = str(form, "slug");
+    const shared = str(form, "shared") === "on" && ctx.can("report.edit");
+    const params = Object.fromEntries(VIEW_KEYS.map((k) => [k, str(form, k).slice(0, 60)]).filter(([, v]) => v));
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { getDataReport, insertSavedView, listSavedViews } = await import("@numarket/db/repo/workspace");
+      if (!(await getDataReport(db, slug))) throw new ActionError("That report doesn't exist.");
+      if ((await listSavedViews(db, ctx.user.id)).filter((v) => v.user_id === ctx.user.id).length >= 50) throw new ActionError("You have 50 saved views. Delete one first.");
+      await insertSavedView(db, ctx.user.id, slug, name, params, shared);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "view.save", target: `run/${slug}`, detail: { name, shared }, ip: meta.ip });
+      revalidatePath("/run", "layout");
+      return { ok: true, message: shared ? "Saved and shared with your team." : "Saved. It's under Saved views." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+export async function deleteView(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("dashboard.view");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { deleteSavedView } = await import("@numarket/db/repo/workspace");
+      const ok = await deleteSavedView(db, str(form, "id"), ctx.user.id, ctx.can("report.edit") && ctx.can("users.manage"));
+      if (!ok) throw new ActionError("You can delete only your own views.");
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "view.delete", ip: meta.ip });
+      revalidatePath("/run", "layout");
+      return { ok: true, message: "Deleted." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/* ---------- alerts ---------- */
+
+export async function addAlert(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("alert.manage_own");
+    const { kindInfo } = await import("@/lib/alerts");
+    const { whoFor } = await import("@/lib/alertsSync");
+    const info = kindInfo(str(form, "kind"));
+    if (!info || !info.allowed(whoFor(ctx))) throw new ActionError("Pick one of the alerts on the list.");
+    const params: Record<string, number> = {};
+    if (info.param) {
+      const x = Number(str(form, info.param.key));
+      if (!(x >= info.param.min && x <= info.param.max)) return { ok: false, message: `${info.param.label}: between ${info.param.min.toLocaleString("en-US")} and ${info.param.max.toLocaleString("en-US")}.`, errors: { [info.param.key]: "Out of range." } };
+      params[info.param.key] = Math.round(x);
+    }
+    const email = str(form, "email") === "on";
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { insertAlertRule, listAlertRules } = await import("@numarket/db/repo/workspace");
+      const mine = await listAlertRules(db, ctx.user.id);
+      if (mine.length >= 20) throw new ActionError("You have 20 alerts. Remove one first.");
+      if (info.kind === "weekly_summary" && mine.some((r) => r.kind === "weekly_summary")) throw new ActionError("You already get the Monday summary.");
+      await insertAlertRule(db, ctx.user.id, info.kind, params, email);
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "alert.create", target: info.kind, detail: { ...params, email }, ip: meta.ip });
+      revalidatePath("/", "layout");
+      return { ok: true, message: "Alert added." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Turn an alert on or off, turn its email on or off, or remove it. */
+export async function changeAlert(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("alert.manage_own");
+    const id = str(form, "id");
+    const intent = str(form, "intent");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const { deleteAlertRule, updateAlertRule } = await import("@numarket/db/repo/workspace");
+      const ok =
+        intent === "remove" ? await deleteAlertRule(db, id, ctx.user.id)
+        : intent === "pause" || intent === "resume" ? await updateAlertRule(db, id, ctx.user.id, { active: intent === "resume" })
+        : intent === "email-on" || intent === "email-off" ? await updateAlertRule(db, id, ctx.user.id, { email: intent === "email-on" })
+        : false;
+      if (!ok) throw new ActionError("That alert isn't yours, or it's gone.");
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: `alert.${intent}`, ip: meta.ip });
+      revalidatePath("/", "layout");
+      return { ok: true, message: intent === "remove" ? "Removed." : "Saved." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+export async function markAlertsRead(_: ActionResult | null): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx } = await tenantOrThrow("alert.manage_own");
+    const { markNotificationsRead } = await import("@numarket/db/repo/workspace");
+    await withTenant(ctx.tenant.id, (db) => markNotificationsRead(db, ctx.user.id), { userId: ctx.user.id });
+    revalidatePath("/", "layout");
+    return { ok: true, message: "All caught up." };
   });
 }

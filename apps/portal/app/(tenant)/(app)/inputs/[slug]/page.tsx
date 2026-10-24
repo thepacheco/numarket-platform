@@ -11,7 +11,7 @@ import { ago, jobsInScope, todayIn, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { deleteEntry, submitEntry } from "../../../actions";
 
-export const metadata: Metadata = { title: "Input screen" };
+export const metadata: Metadata = { title: "Form" };
 
 export default async function InputScreen({ params }: { params: Promise<{ slug: string }> }) {
   const ctx = await requireTenant("input.submit");
@@ -39,7 +39,7 @@ export default async function InputScreen({ params }: { params: Promise<{ slug: 
       <div className="page-head">
         <div>
           <p className="eyebrow">
-            <Link href="/inputs">Input screens</Link>
+            <Link href="/inputs">Forms</Link>
           </p>
           <h1>{screen.title}</h1>
           <p>{screen.description}</p>

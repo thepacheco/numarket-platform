@@ -18,7 +18,7 @@ const EXTRA: Record<string, { name: string; about: string; examples: string[] }>
   },
   insight: { name: "Insight Review", about: PRODUCT_INFO.insight.about, examples: ["What changed this month, and why", "What's at risk, early", "Recommendations with owners and dates"] },
   foundation: { name: "Foundation", about: PRODUCT_INFO.foundation.about, examples: ["Sources, checks, and flags", "Business definitions", "Your private database"] },
-  workspace: { name: "Workspace", about: PRODUCT_INFO.workspace.about, examples: ["Dashboards", "Input screens", "Status reports"] },
+  workspace: { name: "Workspace", about: PRODUCT_INFO.workspace.about, examples: ["Dashboards", "Forms that replace paper", "Status reports", "Alerts"] },
 };
 
 /* What a product the workspace hasn't bought would add. */

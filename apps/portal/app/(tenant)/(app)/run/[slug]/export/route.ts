@@ -33,11 +33,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   const out = run(def, ws.snapshot?.datasets ?? {}, ctx, st);
   const format = url.searchParams.get("format") === "pdf" ? "pdf" : "csv";
   const branding = await withTenant(ctx.tenant.id, async (db) => {
-    await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: ctx.tenant.isDemo ? "demo" : "user", action: `export.${format}`, target: `run/${slug}`, detail: { group: st.grouping.key, range: st.range?.current ?? null, job: st.job ?? null }, ip: meta.ip });
+    await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: ctx.tenant.isDemo ? "demo" : "user", action: `export.${format}`, target: `run/${slug}`, detail: { group: st.grouping.key, range: st.range?.current ?? null, job: st.job ?? null, find: st.find ?? null }, ip: meta.ip });
     return getBranding(db);
   });
   const jobName = st.jobs.find((j) => j.v === st.job)?.l;
-  const filters = [st.grouping.label, st.range ? st.range.label : "As of today", jobName ?? (def.filters.job ? "All jobs" : null)].filter(Boolean).join(" · ");
+  const filters = [st.grouping.label, st.range ? st.range.label : "As of today", jobName ?? (def.filters.job ? "All jobs" : null), st.find ? `Containing "${st.find}"` : null].filter(Boolean).join(" · ");
   const name = `${slug}-${st.grouping.key}`;
   if (format === "pdf") {
     const pdf = await renderTablePdf({

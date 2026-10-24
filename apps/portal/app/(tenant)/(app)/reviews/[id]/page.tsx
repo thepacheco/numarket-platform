@@ -20,7 +20,7 @@ export default async function Review({ params }: { params: Promise<{ id: string 
       <div className="page-head">
         <div>
           <p className="eyebrow">
-            <Link href="/reviews">Monthly reviews</Link>
+            <Link href="/reviews">Your analyst</Link>
           </p>
           <h1>{r.title}</h1>
           <p>

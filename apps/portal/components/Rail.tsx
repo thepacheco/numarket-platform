@@ -43,14 +43,14 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
       <button type="button" className="rail-close" onClick={closeMenu}>
         <Icon name="x" /> Close menu
       </button>
-      <Link href="/" className="rail2-home" aria-current={path === "/" || path.startsWith("/home") ? "page" : undefined} title="Home">
+      <Link href="/" className="rail2-home" aria-current={path === "/" || path.startsWith("/home") ? "page" : undefined} data-tip-title="Home" data-tip="Your own page: the numbers, charts, and to-dos you care about most. Customize it any time.">
         <Icon name="home" />
         <span>Home</span>
       </Link>
 
       {sections.map((s) => (
         <div key={s.product} className={`rail2-sec p-${s.product} ${s.owned ? "" : "unowned"}`}>
-          <div className="rail2-h" title={s.owned ? `${s.name}: ${s.tagline}` : `${s.name} · not in your plan`}>
+          <div className="rail2-h" data-tip-title={`${s.name}: ${s.tagline}`} data-tip={s.owned ? s.about : `Not in your plan. ${s.about}`}>
             <SolidIcon kind={s.product} size={16} muted={!s.owned} />
             <span>{s.name}</span>
             {!s.owned && <span className="rail-lock">Not in plan</span>}
@@ -58,7 +58,7 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
           <ul>
             {s.items.map((i) => (
               <li key={i.href}>
-                <Link href={i.href} className={`rail2-link ${i.locked ? "locked" : ""}`} aria-current={current(i) ? "page" : undefined} title={collapsed ? `${s.name} · ${i.label}` : undefined}>
+                <Link href={i.href} className={`rail2-link ${i.locked ? "locked" : ""}`} aria-current={current(i) ? "page" : undefined} data-tip-title={collapsed ? `${s.name} · ${i.label}` : i.label} data-tip={i.tip ?? i.label}>
                   <Icon name={i.icon} />
                   <span>{i.label}</span>
                   {i.badge === "flags" && flags > 0 ? <span className="nav-count">{flags}</span> : null}
@@ -71,7 +71,7 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
 
       <div className="rail-foot">
         {settings && (
-          <Link href="/admin" className="rail2-home" aria-current={path.startsWith("/admin") ? "page" : undefined} title="Settings">
+          <Link href="/admin" className="rail2-home" aria-current={path.startsWith("/admin") ? "page" : undefined} data-tip-title="Settings" data-tip="Users and roles, branding, security, the audit log, and usage and plan.">
             <Icon name="gear" />
             <span>Settings</span>
           </Link>

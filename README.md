@@ -151,6 +151,14 @@ deletes visitors' entries, reports they created, sources they connected, and
 demo sessions, then republishes the sample data. Real (non-demo) workspaces are
 never touched by it or by the deploy-time seed.
 
+### What the daily alerts job does
+`/api/cron/alerts` (Vercel Cron at 11:00 UTC, about 7 AM Eastern; same
+`CRON_SECRET`) checks every person's alerts in every live workspace against
+its latest update, records anything new (it shows on the bell), and emails it
+to the people who turned email on. On Mondays it also sends the Monday
+summary. Each alert is sent once, not every day. Demo and sandbox workspaces
+are skipped.
+
 ---
 
 ## 3. How it's built
@@ -202,7 +210,9 @@ Today the demo publishes simulated snapshots.
 | `DATABASE_URL` | Vercel (from Neon) | Pooled. Used by the app. |
 | `DATABASE_URL_UNPOOLED` | Vercel (from Neon) | Direct. Used by migrations and seed when present. |
 | `DEMO_HOSTS` | optional | Comma-separated hosts that open the demo. Default on Vercel production: app.numarket.us + the project's production address. |
-| `CRON_SECRET` | Vercel, Sensitive | Guards the nightly reset. |
+| `CRON_SECRET` | Vercel, Sensitive | Guards the nightly reset and the daily alerts job. |
+| `RESEND_API_KEY` | Vercel, Sensitive, when you're ready | Turns on alert and Monday-summary emails (Resend). Without it, alerts show in the Portal and on the bell only. The demo never sends email. |
+| `EMAIL_FROM` | Vercel, with the key | The sender, like `numarket <alerts@numarket.us>`. The domain must be verified in Resend (it gives you 3 DNS records for IONOS). |
 | `OPS_HOSTS` | later | Hosts for the ops console, once staff sign-in exists. |
 | `APP_DOMAIN` | later | `numarket.app` → `{workspace}.numarket.app`. |
 | `ALLOW_DEV_SIGNIN` | local only | `1` enables dev sign-in. Refused in production by code. |

@@ -5,6 +5,7 @@ import type { TenantContext } from "@numarket/auth";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import type { ActionResult } from "./ActionForm";
 import AutoSubmitSelect from "./AutoSubmitSelect";
+import ChartTools from "./ChartTools";
 import PinButton from "./PinButton";
 
 export type Pins = { pinned: Set<string>; action: (p: ActionResult | null, f: FormData) => Promise<ActionResult> };
@@ -72,6 +73,7 @@ export function Rows({ rows, c, pins }: { rows: Page["rows"]; c: BlockContext; p
               pins && pinnable(b) ? (
                 <div key={j} className={`pin-wrap span-${b.span ?? 1}`}>
                   <BlockView block={b} c={c} />
+                  <ChartTools title={b.title} />
                   <PinButton id={blockId(b)} pinned={pins.pinned.has(blockId(b))} action={pins.action} />
                 </div>
               ) : (

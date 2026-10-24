@@ -297,3 +297,94 @@ export async function addSource(db: Db, s: { provider: string; name: string; tie
     [s.provider, s.name, s.tier, s.connection, s.streams],
   );
 }
+
+/* ---------- Engineering apps (estimates, approvals) ---------- */
+export type AppRecord = { id: string; app: string; status: string; data: Record<string, unknown>; created_at: Date; updated_at: Date; by_name: string | null; created_by: string | null; decided_by: string | null };
+export async function listAppRecords(db: Db, app: string, limit = 50) {
+  return (
+    await db.query<AppRecord>(
+      `select r.id, r.app, r.status, r.data, r.created_at, r.updated_at, r.created_by, u.name as by_name, d.name as decided_by
+       from app_records r left join users u on u.id = r.created_by left join users d on d.id = r.updated_by and r.updated_by is distinct from r.created_by
+       where r.app = $1 order by r.created_at desc limit $2`,
+      [app, limit],
+    )
+  ).rows;
+}
+export async function getAppRecord(db: Db, app: string, id: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+  return (await db.query<AppRecord>("select r.id, r.app, r.status, r.data, r.created_at, r.updated_at, r.created_by, null::text as by_name, null::text as decided_by from app_records r where r.app = $1 and r.id = $2", [app, id])).rows[0] ?? null;
+}
+export async function insertAppRecord(db: Db, app: string, status: string, data: Record<string, unknown>, userId: string) {
+  const r = await db.query<{ id: string }>("insert into app_records (tenant_id, app, status, data, created_by, updated_by) values (current_tenant(), $1, $2, $3, $4, $4) returning id", [app, status, JSON.stringify(data), userId]);
+  return r.rows[0].id;
+}
+export async function updateAppRecord(db: Db, id: string, status: string, data: Record<string, unknown> | null, userId: string) {
+  await db.query("update app_records set status = $2, data = coalesce($3::jsonb, data), updated_by = $4, updated_at = now() where id = $1", [id, status, data ? JSON.stringify(data) : null, userId]);
+}
+
+/* ---------- saved report views ---------- */
+export type SavedView = { id: string; report_slug: string; name: string; params: Record<string, string>; shared: boolean; user_id: string; by_name: string | null; created_at: Date };
+/** Your own views and the ones your team shared, newest first. */
+export async function listSavedViews(db: Db, userId: string, slug?: string) {
+  return (
+    await db.query<SavedView>(
+      `select v.id, v.report_slug, v.name, v.params, v.shared, v.user_id, u.name as by_name, v.created_at
+       from saved_views v left join users u on u.id = v.user_id
+       where (v.user_id = $1 or v.shared) and ($2::text is null or v.report_slug = $2)
+       order by v.created_at desc limit 100`,
+      [userId, slug ?? null],
+    )
+  ).rows;
+}
+export async function insertSavedView(db: Db, userId: string, slug: string, name: string, params: Record<string, string>, shared: boolean) {
+  const r = await db.query<{ id: string }>("insert into saved_views (tenant_id, user_id, report_slug, name, params, shared) values (current_tenant(), $1, $2, $3, $4, $5) returning id", [userId, slug, name, JSON.stringify(params), shared]);
+  return r.rows[0].id;
+}
+export async function deleteSavedView(db: Db, id: string, userId: string, any: boolean) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return false;
+  return (await db.query("delete from saved_views where id = $1 and ($3 or user_id = $2)", [id, userId, any])).rowCount === 1;
+}
+
+/* ---------- alerts ---------- */
+export type AlertRuleRow = { id: string; kind: string; params: { amount?: number; days?: number }; email: boolean; active: boolean; created_at: Date };
+export async function listAlertRules(db: Db, userId: string) {
+  return (await db.query<AlertRuleRow>("select id, kind, params, email, active, created_at from alert_rules where user_id = $1 order by created_at", [userId])).rows;
+}
+export async function insertAlertRule(db: Db, userId: string, kind: string, params: Record<string, number>, email: boolean) {
+  return (await db.query<{ id: string }>("insert into alert_rules (tenant_id, user_id, kind, params, email) values (current_tenant(), $1, $2, $3, $4) returning id", [userId, kind, JSON.stringify(params), email])).rows[0].id;
+}
+export async function updateAlertRule(db: Db, id: string, userId: string, patch: { active?: boolean; email?: boolean }) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return false;
+  const r = await db.query("update alert_rules set active = coalesce($3, active), email = coalesce($4, email) where id = $1 and user_id = $2", [id, userId, patch.active ?? null, patch.email ?? null]);
+  return r.rowCount === 1;
+}
+export async function deleteAlertRule(db: Db, id: string, userId: string) {
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return false;
+  return (await db.query("delete from alert_rules where id = $1 and user_id = $2", [id, userId])).rowCount === 1;
+}
+export type NotificationRow = { id: string; rule_id: string | null; title: string; body: string; link: string | null; email_status: string; created_at: Date; read_at: Date | null };
+/** Record what fired; returns only the ones that are new (each key is kept once). */
+export async function recordNotifications(db: Db, userId: string, ruleId: string, items: { key: string; title: string; body: string; link: string }[]) {
+  const fresh: (NotificationRow & { key: string })[] = [];
+  for (const it of items) {
+    const r = await db.query<NotificationRow & { key: string }>(
+      `insert into notifications (tenant_id, user_id, rule_id, dedupe_key, title, body, link) values (current_tenant(), $1, $2, $3, $4, $5, $6)
+       on conflict (tenant_id, user_id, dedupe_key) do nothing returning id, dedupe_key as key, rule_id, title, body, link, email_status, created_at, read_at`,
+      [userId, ruleId, it.key, it.title.slice(0, 200), it.body.slice(0, 600), it.link],
+    );
+    if (r.rows[0]) fresh.push(r.rows[0]);
+  }
+  return fresh;
+}
+export async function setEmailStatus(db: Db, ids: string[], status: string) {
+  if (ids.length) await db.query("update notifications set email_status = $2 where id = any($1)", [ids, status]);
+}
+export async function listNotifications(db: Db, userId: string, limit = 30) {
+  return (await db.query<NotificationRow>("select id, rule_id, title, body, link, email_status, created_at, read_at from notifications where user_id = $1 order by created_at desc limit $2", [userId, limit])).rows;
+}
+export async function unreadNotifications(db: Db, userId: string) {
+  return (await db.query<{ n: number }>("select count(*)::int as n from notifications where user_id = $1 and read_at is null", [userId])).rows[0].n;
+}
+export async function markNotificationsRead(db: Db, userId: string) {
+  await db.query("update notifications set read_at = now() where user_id = $1 and read_at is null", [userId]);
+}

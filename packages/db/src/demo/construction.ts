@@ -402,7 +402,7 @@ export function buildDatasets(jobsIn: JobFact[] | null, entries: Entry[], asOf: 
     crew_hours: Number(e.data.crew_hours),
     by: e.created_by_name ?? "Team member",
     note: String(e.data.note ?? ""),
-    via: "Input screen",
+    via: "Portal form",
   }));
   const fieldReports = [...entered, ...sampleReports].slice(0, 25);
 
