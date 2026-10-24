@@ -385,7 +385,7 @@ Idempotent. Inputs: tenant slug, edition, region, tier. Steps: create account â†
 | Scheduled refresh | Daily, overnight | Up to hourly, 7amâ€“7pm local, weekdays | Custom |
 | "Update now" | 2 per day | 6 per day | Custom |
 | Ask Your Data | 200 questions / month | 1,000 / month | Custom |
-| Row volume (largest table) | Up to ~5M | Up to ~50M | Scoped |
+| Row volume (history) | Up to ~10M | Up to ~50M | Scoped |
 | Platform allowance | $400 / month | $800 / month | Pass-through + 15% |
 | Alert rules | 10 | 50 | Custom |
 | Scheduled reports | 5 | 25 | Custom |

@@ -1,6 +1,6 @@
 # numarket: what we sell, who does what, and whether the prices work
 
-**Version 2 · October 24, 2026 · Owner: Brandon.** Internal. Written to settle
+**Version 3 · October 24, 2026 · Owner: Brandon.** Internal. Written to settle
 the product lines for both the website and the Portal. Pass this file to any
 chat or person working on either; they should treat it as the source of truth.
 Sections marked **[DECISION]** need Brandon's yes before anything public changes.
@@ -235,32 +235,56 @@ lever, and it's why the Portal is built the way it is:
 - AI-drafted reviews the analyst edits (1 hour instead of 3);
 - fewer custom requests, because clients can arrange and pin things themselves.
 
-**2. [DECISION] Reprice the people-heavy parts.** Proposed:
+**2. Reprice the people-heavy parts, and price usage (APPLIED to the website, October 24, v3).**
+The full model, with every assumption editable, is the **pricing model
+calculator**: https://claude.ai/artifact/THTXHGAGbNkMgdGQbKTDiE (private to
+Brandon; share it from its page).
 
-| | Today | Proposed |
+| | Was | Now |
 |---|---|---|
-| Foundation monthly, Small / Mid | $1,100 / $1,900 | **$1,250 / $2,250** |
-| Workspace monthly, Small / Mid | $850 / $1,300 | same |
-| Workspace change hours included, Small / Mid | 4 / 10 | **2 / 6**, extra in blocks of 5 at $175/h |
-| Insight Review monthly, Small / Mid | $850 / $1,300 | **$1,250 / $2,400** |
-| Bundle (about 10% off), Small / Mid | $2,500 / $4,000 | **$3,000 / $5,400** |
-| Setup, Small / Mid | $7,500 / $15,000 | same (priced on real hours: about 55 h / 110 h) |
+| Foundation setup, Small / Mid | $6,000 / $12,000 | **$7,000 / $14,000** |
+| Foundation monthly, Small / Mid | $1,100 / $1,900 | **$1,250 / $2,500** |
+| Workspace setup, Small / Mid | $2,500 / $5,000 | **$3,000 / $6,000** |
+| Workspace monthly, Small / Mid | $850 / $1,300 | **$850 / $1,400** |
+| Change hours included, Small / Mid | 4 / 10 | **2 / 6**, extra $175/h in blocks of 5 |
+| Insight Review monthly, Small / Mid / Large | $850 / $1,300 / from $3,000 | **$1,250 / $2,500 / from $5,000** |
+| Plan (all three, about 10% off), Small / Mid / Large | $2,500 / $4,000 / from $10,000 | **$3,000 / $5,750 / from $12,000** |
+| Plan setup, Small / Mid / Large | $7,500 / $15,000 / from $40,000 | **$9,500 / $19,000 / from $40,000** |
 
-With target hours, margin becomes **56% on Small** and **52% on Mid**, and rises as
-hours keep falling. A client who doesn't want the analyst buys Foundation +
-Workspace (Mid $3,550), which is high margin because it's mostly software.
+**What the usage model found** (vendor prices checked October 24, 2026):
+- **People are most of the cost** (75–90% of a client). Prices start from hours.
+- **Snowflake itself is cheap in our design** (dashboards read snapshots, loads are incremental): about $10–$150 a month per client. Storage is pennies (15M rows ≈ 4 GB).
+- **"Millions of rows" costs money in three places:** paid connectors (about $30 per million rows on Airbyte, about $500 per million changed rows on Fivetran), setup hours (history, checks, cleanup), and longer hourly updates.
+- **Ask Your Data** is about $0.18 a question (Cortex Analyst ≈ 0.067 credits plus the query). 1,000 questions ≈ $180.
 
-**3. [DECISION] Guardrails, so one client can't sink the month:**
-- **Data volume bands:** Small up to about 5 million rows, Mid up to about 50 million. Above that, the next size or a volume add-on.
+**Usage-aware pricing (now on the website under "As you grow"):** included in each
+plan in plain units (sources, update schedule, rows of history: Small ~10M, Mid
+~50M; Ask questions: 200 / 1,000; platform allowance $400 / $800), and a
+published price for everything that grows: extra source $150/mo; custom source
++$300/mo; extra 25M rows $200/mo; hourly updates on Small $300/mo; extra
+questions $40 per 100; extra change hours $175; read-only BI login $150/mo
+(25 credits included, then cost + 15%); enterprise SSO $250/mo per connection;
+HIPAA +$500 / +$800; platform usage over the allowance at cost + 15%, warned at
+70% and 85%.
+
+**Margins at target hours (from the calculator):** Small typical 62%; Small with
+3 sources and 15M rows 57%; Mid typical 57%; Mid heavy 49%; Foundation-only 58%.
+Done by hand (no automation) they fall to 30–35%: the automation is the business.
+
+**3. Guardrails, so one client can't sink the month:**
+- **Data volume:** Small up to about 10 million rows of history, Mid up to about 50 million. Above that, $200/mo per extra 25 million or the next size.
 - **"They broke it again":** the contract says the client keeps entering data in their systems the agreed way; we flag breaks automatically. Fixing breakage from changes in their systems comes out of change hours; repeated hand-cleanup is never included.
 - **Platform overage:** beyond the allowance, passed through at cost + 15%, with a warning at 70% and 85%.
 - **Change hours don't roll over**; requests over the remaining hours wait for next month or a quote.
 
 ### Capacity, and when to hire
-At target hours, one analyst carries about **6 Mid or 12 Small clients.** Six Mid
-clients at the proposed price bring about $32,400 a month against about $16,400 of
-cost (analyst plus platform), roughly a 49% margin, plus setup and Engineering
-on top. **Hire analyst #1 at about 4 Mid-sized clients** (or 8 Small), or when
+At target hours, one analyst carries about **5 Mid or 11 Small clients.** Five Mid
+clients at the new price bring about $28,750 a month against about $13,000 of
+cost (a fully paid analyst plus platform), about 55%, plus setup and Engineering
+on top. The cost side already pays every delivery hour at a full salary, so the
+gross profit is what pays for Brandon, sales, overhead, and the next hire. With
+$15,000 a month of overhead, break-even is about 5 Mid or 9 Small clients; the
+calculator's "business" section shows any mix. **Hire analyst #1 at about 4 Mid-sized clients** (or 8 Small), or when
 delivery passes 25 hours of Brandon's week. Until then Brandon delivers, but the
 prices must assume a paid analyst, or the business can't grow past one person.
 
@@ -282,7 +306,7 @@ targeting 60%+ margin.
 - Explain Enter data (forms) with the daily field report and change order log examples (§2).
 - Say clearly that numarket builds the dashboards and clients arrange and use them (§2).
 - State the Ask Your Data allowance (200 / 1,000 questions a month).
-- **Don't change prices until Brandon approves §5.** When approved, update `content/tiers.ts` (product prices, bundles, change hours) and the pricing FAQ.
+- **Done October 24:** prices, inclusions, and "As you grow" add-ons are in `content/tiers.ts`; product copy in `content/products.ts`; pricing FAQ, docs, and every page that described the products are updated; the homepage hero is shorter, with the four product shapes nesting into one.
 
 **Portal (done October 24, in the demo now):**
 - The menu follows the products: **Foundation** (Explore, Enter data, Data health), **Workspace** (Dashboards, Reports, Ask Your Data), **Insight Review** (Your analyst), **Engineering** (Apps). Hover any item for what it's for.

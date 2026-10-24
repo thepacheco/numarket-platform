@@ -27,7 +27,7 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     schedule: { label: "Daily, overnight", hours: [2], weekdaysOnly: false },
     updateNowPerDay: 2,
     askQuestionsPerMonth: 200,
-    rowVolume: "Up to about 5 million rows",
+    rowVolume: "Up to about 10 million rows",
     platformAllowance: "$400 / month",
     alertRules: 10,
     scheduledReports: 5,
