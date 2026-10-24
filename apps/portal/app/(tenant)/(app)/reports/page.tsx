@@ -4,6 +4,7 @@ import { withTenant } from "@numarket/db";
 import { listReports } from "@numarket/db/repo/workspace";
 import { ago, reportVisible } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Status reports" };
 
@@ -12,6 +13,7 @@ export default async function Reports() {
   const reports = (await withTenant(ctx.tenant.id, listReports)).filter((r) => reportVisible(r.layout, ctx));
   return (
     <>
+      <HubNav hub="reports" current="/reports" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Workspace</p>

@@ -1,4 +1,5 @@
-/* Sample construction company for the demo workspace (Summit Builders).
+/* Sample companies for the demo workspaces (Summit Builders, construction;
+   and through a different Profile, the professional services firm).
 
    In production, snapshots are published by the worker from the tenant's
    Snowflake serve tables. In the demo, buildDatasets() plays that role: it
@@ -33,21 +34,107 @@ export const ACME_JOBS: JobFact[] = [
   { code: "A2", name: "Office Fit-Out", customer: "Acme internal", budget: 850_000, pct: 0.75, actual: 610_000, rfis: 1, startAgo: 6 },
 ];
 
-/* Finished jobs: they still shaped revenue and costs in earlier months. */
-const COMPLETED = [
-  { customer: "Harbor Logistics Group", value: 11_500_000, startAgo: 28, endAgo: 12 },
-  { customer: "Elm Street Holdings", value: 6_400_000, startAgo: 30, endAgo: 15 },
-  { customer: "Riverside Family Clinic", value: 3_100_000, startAgo: 19, endAgo: 6 },
-  { customer: "Northpoint Medical Pavilion", value: 9_800_000, startAgo: 34, endAgo: 9 },
-  { customer: "Lakeshore Distribution Center", value: 8_200_000, startAgo: 31, endAgo: 7 },
-];
-const SERVICE_CUSTOMERS = ["Oakline Property Group", "Westbrook Schools", "Cedar Point Retail", "Lakeside Church", "Grove Street Dental"];
-const VENDORS = ["Keystone Rebar", "Delta Mechanical", "Ridgeview Concrete", "BlueLine Steel", "Allied Equipment Rental", "Pinecrest Lumber", "Volt Electric Supply", "Metro Waste Services"];
-
 export const CAUSES = ["Design errors", "Owner changes", "Unforeseen conditions", "Weather", "Scope additions"] as const;
 export const LABOR_RATE = 68;
 export const MARKUP = 1.2;
 export const HISTORY_MONTHS = 26;
+
+/* Everything that makes the sample company look like its industry. The
+   generator below is the same for every industry; only these facts change. */
+export type Profile = {
+  jobs: JobFact[];
+  /* finished work that still shaped revenue and costs in earlier months */
+  completed: { customer: string; value: number; startAgo: number; endAgo: number }[];
+  /* customers billed outside the active jobs (service work, retainers) */
+  otherCustomers: string[];
+  otherRevenue: [number, number]; // base + random spread per customer per month
+  otherCostShare: number;
+  vendors: string[];
+  vendorScale: number[];
+  vendorSpendK: number[];
+  apBase: [number, number, number];
+  apLate: { i: number; bucket: number; amount: number }[];
+  arLate: { job?: string; customer?: string; bucket: number; amount: number }[];
+  causes: readonly string[];
+  /* the one job with a problem the analyst points out */
+  heavy: { job: string; causeIdx: number; factor: number };
+  coShare: [number, number];
+  laborRate: number;
+  markup: number;
+  hoursShare: number;
+  dailyHours: [number, number];
+  revenueAccounts: [string, string];
+  /* three cost parts drawn as shares of job cost, plus the remainder; listed in P&L order */
+  cogsParts: [string, number, number][];
+  cogsRemainder: string;
+  cogsOrder: string[];
+  opex: readonly (readonly [string, number])[];
+  cashStart: number;
+  cashNoise: number;
+  rfi: { prefix: string; start: number; subjects: string[]; ballInCourt: string[] };
+  screens: { field: string; co: string };
+  sample: { people: string[]; notes: string[]; base: number; step: number };
+};
+
+export const CONSTRUCTION_PROFILE: Profile = {
+  jobs: SUMMIT_JOBS,
+  completed: [
+    { customer: "Harbor Logistics Group", value: 11_500_000, startAgo: 28, endAgo: 12 },
+    { customer: "Elm Street Holdings", value: 6_400_000, startAgo: 30, endAgo: 15 },
+    { customer: "Riverside Family Clinic", value: 3_100_000, startAgo: 19, endAgo: 6 },
+    { customer: "Northpoint Medical Pavilion", value: 9_800_000, startAgo: 34, endAgo: 9 },
+    { customer: "Lakeshore Distribution Center", value: 8_200_000, startAgo: 31, endAgo: 7 },
+  ],
+  otherCustomers: ["Oakline Property Group", "Westbrook Schools", "Cedar Point Retail", "Lakeside Church", "Grove Street Dental"],
+  otherRevenue: [22_000, 30_000],
+  otherCostShare: 0.58,
+  vendors: ["Keystone Rebar", "Delta Mechanical", "Ridgeview Concrete", "BlueLine Steel", "Allied Equipment Rental", "Pinecrest Lumber", "Volt Electric Supply", "Metro Waste Services"],
+  vendorScale: [1.4, 1.2, 1.1, 1.0, 0.6, 0.5, 0.45, 0.2],
+  vendorSpendK: [210, 180, 160, 150, 70, 60, 55, 18],
+  apBase: [260_000, 140_000, 38_000],
+  apLate: [
+    { i: 1, bucket: 3, amount: 31_500 },
+    { i: 6, bucket: 4, amount: 7_800 },
+  ],
+  arLate: [
+    { job: "114", bucket: 3, amount: 212_400 }, // Halden County DOT pays slowly
+    { job: "133", bucket: 4, amount: 48_300 },
+    { customer: "Cedar Point Retail", bucket: 3, amount: 18_900 },
+  ],
+  causes: CAUSES,
+  heavy: { job: "114", causeIdx: 0, factor: 3.2 }, // design errors drive Route 9 Bridge
+  coShare: [0.035, 0.03],
+  laborRate: LABOR_RATE,
+  markup: MARKUP,
+  hoursShare: 0.33,
+  dailyHours: [20, 60],
+  revenueAccounts: ["Contract revenue", "Service and small projects"],
+  cogsParts: [
+    ["Direct labor", 0.31, 0.04],
+    ["Materials", 0.27, 0.03],
+    ["Equipment", 0.07, 0.02],
+  ],
+  cogsRemainder: "Subcontractors",
+  cogsOrder: ["Direct labor", "Materials", "Subcontractors", "Equipment"],
+  opex: [
+    ["Office salaries", 205_000],
+    ["Rent and facilities", 46_000],
+    ["Insurance and bonding", 41_000],
+    ["Vehicles and fuel", 27_000],
+    ["Software and IT", 12_500],
+    ["Other general and admin", 31_000],
+  ],
+  cashStart: 1_850_000,
+  cashNoise: 120_000,
+  rfi: {
+    prefix: "RFI",
+    start: 180,
+    subjects: ["Rebar spacing at pier 3", "Door hardware spec", "Slab embed conflict", "Roof drain location", "Fire damper access", "Duct routing at grid C", "Anchor bolt pattern", "Curtain wall mullion size"],
+    ballInCourt: ["Architect", "Structural engineer", "Owner", "MEP engineer"],
+  },
+  screens: { field: "daily-field-report", co: "change-order-log" },
+  sample: { people: ["Luis Ortiz", "Kim Alvarez", "Ray Dunn"], notes: ["Steel delivery on time", "Waiting on RFI 207 response", "Pour scheduled Thursday", "Inspection passed"], base: 40, step: 12 },
+};
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
 /* Small deterministic PRNG so every reset produces the same sample data. */
@@ -105,7 +192,8 @@ function spread(total: number, months: number, startIdx: number, endIdx: number,
   return out;
 }
 
-export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Datasets {
+export function buildDatasets(jobsIn: JobFact[] | null, entries: Entry[], asOf: Date, p: Profile = CONSTRUCTION_PROFILE): Datasets {
+  const jobs = jobsIn ?? p.jobs;
   const rand = rng(jobs.length * 7919 + jobs[0].code.charCodeAt(0));
   const months = monthLabels(asOf);
   const M = months.length;
@@ -114,15 +202,15 @@ export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Da
   const curFrac = Math.max(0.08, asOf.getUTCDate() / dim);
 
   const sorted = [...entries].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  const field = sorted.filter((e) => e.screen_slug === "daily-field-report");
-  const cos = sorted.filter((e) => e.screen_slug === "change-order-log");
+  const field = sorted.filter((e) => e.screen_slug === p.screens.field);
+  const cos = sorted.filter((e) => e.screen_slug === p.screens.co);
 
   /* job state after entries (actual cost, percent complete) */
   const jobState = new Map(jobs.map((j) => [j.code, { ...j }]));
   for (const e of field) {
     const j = jobState.get(String(e.data.job));
     if (!j) continue;
-    j.actual += Number(e.data.crew_hours) * LABOR_RATE;
+    j.actual += Number(e.data.crew_hours) * p.laborRate;
     const pct = e.data.pct_complete;
     if (pct !== undefined && pct !== null && pct !== "") j.pct = Math.min(1, Math.max(0, Number(pct) / 100));
   }
@@ -150,23 +238,23 @@ export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Da
   const revenue: Record<string, unknown>[] = [];
   for (const base of jobs) {
     const earned = jobEarned.get(base.code)!;
-    for (let i = 0; i < M; i++) if (earned[i] > 0) revenue.push({ month: months[i], customer: base.customer, job: base.code, job_name: base.name, amount: r0(earned[i] * MARKUP) });
+    for (let i = 0; i < M; i++) if (earned[i] > 0) revenue.push({ month: months[i], customer: base.customer, job: base.code, job_name: base.name, amount: r0(earned[i] * p.markup) });
   }
   const completedCost = Array(M).fill(0) as number[];
-  for (const c of COMPLETED) {
+  for (const c of p.completed) {
     const s = spread(c.value, M, cur - c.startAgo, cur - c.endAgo, 1, rand);
     for (let i = 0; i < M; i++) {
       if (s[i] > 0) {
         revenue.push({ month: months[i], customer: c.customer, amount: r0(s[i]) });
-        completedCost[i] += s[i] / (MARKUP * (0.97 + rand() * 0.06));
+        completedCost[i] += s[i] / (p.markup * (0.97 + rand() * 0.06));
       }
     }
   }
   const serviceRev = Array(M).fill(0) as number[];
   for (let i = 0; i < M; i++) {
     const frac = i === cur ? curFrac : 1;
-    for (const c of SERVICE_CUSTOMERS) {
-      const amt = (22_000 + rand() * 30_000) * frac * (1 + (i / M) * 0.25);
+    for (const c of p.otherCustomers) {
+      const amt = (p.otherRevenue[0] + rand() * p.otherRevenue[1]) * frac * (1 + (i / M) * 0.25);
       serviceRev[i] += amt;
       revenue.push({ month: months[i], customer: c, amount: r0(amt) });
     }
@@ -178,78 +266,67 @@ export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Da
   const netByMonth: number[] = [];
   for (let i = 0; i < M; i++) {
     const frac = i === cur ? curFrac : 1;
-    const contract = jobs.reduce((t, b) => t + jobEarned.get(b.code)![i] * MARKUP, 0) + revenue.filter((r) => r.month === months[i] && COMPLETED.some((c) => c.customer === r.customer)).reduce((t, r) => t + Number(r.amount), 0);
-    const jobCost = jobs.reduce((t, b) => t + jobActual.get(b.code)![i], 0) + completedCost[i] + serviceRev[i] * 0.58;
-    /* entered crew hours are already in this month's job cost */
-    const labor = jobCost * (0.31 + rand() * 0.04);
-    const materials = jobCost * (0.27 + rand() * 0.03);
-    const equipment = jobCost * (0.07 + rand() * 0.02);
-    const subs = jobCost - labor - materials - equipment;
-    const opex = [
-      ["Office salaries", 205_000],
-      ["Rent and facilities", 46_000],
-      ["Insurance and bonding", 41_000],
-      ["Vehicles and fuel", 27_000],
-      ["Software and IT", 12_500],
-      ["Other general and admin", 31_000],
-    ] as const;
-    add(i, "Revenue", "Contract revenue", contract, 1);
-    add(i, "Revenue", "Service and small projects", serviceRev[i], 2);
-    add(i, "Cost of goods sold", "Direct labor", labor, 3);
-    add(i, "Cost of goods sold", "Materials", materials, 4);
-    add(i, "Cost of goods sold", "Subcontractors", subs, 5);
-    add(i, "Cost of goods sold", "Equipment", equipment, 6);
+    const contract = jobs.reduce((t, b) => t + jobEarned.get(b.code)![i] * p.markup, 0) + revenue.filter((r) => r.month === months[i] && p.completed.some((c) => c.customer === r.customer)).reduce((t, r) => t + Number(r.amount), 0);
+    const jobCost = jobs.reduce((t, b) => t + jobActual.get(b.code)![i], 0) + completedCost[i] + serviceRev[i] * p.otherCostShare;
+    /* entered hours are already in this month's job cost */
+    const parts = new Map<string, number>();
+    for (const [name, base, spreadW] of p.cogsParts) parts.set(name, jobCost * (base + rand() * spreadW));
+    let remainder = jobCost;
+    for (const v of parts.values()) remainder -= v;
+    parts.set(p.cogsRemainder, remainder);
+    add(i, "Revenue", p.revenueAccounts[0], contract, 1);
+    add(i, "Revenue", p.revenueAccounts[1], serviceRev[i], 2);
+    p.cogsOrder.forEach((name, k) => add(i, "Cost of goods sold", name, parts.get(name) ?? 0, 3 + k));
     let opexTotal = 0;
-    opex.forEach(([name, base], k) => {
+    p.opex.forEach(([name, base], k) => {
       const v = base * frac * (0.94 + rand() * 0.12) * (0.84 + (i / M) * 0.16);
       opexTotal += v;
-      add(i, "Operating expenses", name, v, 7 + k);
+      add(i, "Operating expenses", name, v, 3 + p.cogsOrder.length + k);
     });
     netByMonth.push(contract + serviceRev[i] - jobCost - opexTotal);
   }
 
   /* ---------- cash on hand (month-end) ---------- */
   const cash: Record<string, unknown>[] = [];
-  let bal = 1_850_000;
+  let bal = p.cashStart;
   for (let i = 0; i < M; i++) {
-    bal += netByMonth[i] * (0.3 + rand() * 0.3) + (i === cur ? 0 : (rand() - 0.5) * 120_000);
+    bal += netByMonth[i] * (0.3 + rand() * 0.3) + (i === cur ? 0 : (rand() - 0.5) * p.cashNoise);
     cash.push({ month: months[i], balance: r0(bal) });
   }
 
   /* ---------- receivables and payables aging (as of today) ---------- */
   const lastRev = (customer: string, back: number) => revenue.filter((r) => r.customer === customer && r.month === months[cur - back]).reduce((t, r) => t + Number(r.amount), 0);
   const arAging: Record<string, unknown>[] = [];
-  const arCustomers = [...jobs.map((j) => ({ customer: j.customer, job: j.code as string | undefined, job_name: j.name })), ...SERVICE_CUSTOMERS.map((c) => ({ customer: c, job: undefined, job_name: undefined }))];
+  const arCustomers = [...jobs.map((j) => ({ customer: j.customer, job: j.code as string | undefined, job_name: j.name })), ...p.otherCustomers.map((c) => ({ customer: c, job: undefined, job_name: undefined }))];
   for (const c of arCustomers) {
     const b = [lastRev(c.customer, 0) * 0.9 + lastRev(c.customer, 1) * 0.25, lastRev(c.customer, 1) * 0.55, lastRev(c.customer, 2) * 0.12, 0, 0];
-    if (c.job === "114") b[3] = 212_400; // Halden County DOT pays slowly
-    if (c.job === "133") b[4] = 48_300;
-    if (c.customer === "Cedar Point Retail") b[3] = 18_900;
+    for (const late of p.arLate) if ((late.job && c.job === late.job) || (late.customer && c.customer === late.customer)) b[late.bucket] = late.amount;
     const row: Record<string, unknown> = { customer: c.customer, current: r0(b[0]), d1_30: r0(b[1]), d31_60: r0(b[2]), d61_90: r0(b[3]), d90p: r0(b[4]), total: r0(b.reduce((x, y) => x + y, 0)) };
     if (c.job) Object.assign(row, { job: c.job, job_name: c.job_name });
     arAging.push(row);
   }
-  const apAging: Record<string, unknown>[] = VENDORS.map((v, k) => {
-    const scale = [1.4, 1.2, 1.1, 1.0, 0.6, 0.5, 0.45, 0.2][k];
-    const b = [260_000 * scale * (0.8 + rand() * 0.4), 140_000 * scale * (0.7 + rand() * 0.5), 38_000 * scale * rand(), k === 1 ? 31_500 : 0, k === 6 ? 7_800 : 0];
+  const apAging: Record<string, unknown>[] = p.vendors.map((v, k) => {
+    const scale = p.vendorScale[k] ?? 0.2;
+    const lateAmt = (bucket: number) => p.apLate.find((x) => x.i === k && x.bucket === bucket)?.amount ?? 0;
+    const b = [p.apBase[0] * scale * (0.8 + rand() * 0.4), p.apBase[1] * scale * (0.7 + rand() * 0.5), p.apBase[2] * scale * rand(), lateAmt(3), lateAmt(4)];
     return { vendor: v, current: r0(b[0]), d1_30: r0(b[1]), d31_60: r0(b[2]), d61_90: r0(b[3]), d90p: r0(b[4]), total: r0(b.reduce((x, y) => x + y, 0)), due_7d: r0(b[0] * (0.25 + rand() * 0.2)) };
   });
   const vendorSpend: Record<string, unknown>[] = [];
   for (let i = 0; i < M; i++) {
     const frac = i === cur ? curFrac : 1;
-    VENDORS.forEach((v, k) => vendorSpend.push({ month: months[i], vendor: v, amount: r0([210, 180, 160, 150, 70, 60, 55, 18][k] * 1000 * frac * (0.75 + rand() * 0.5)) }));
+    p.vendors.forEach((v, k) => vendorSpend.push({ month: months[i], vendor: v, amount: r0((p.vendorSpendK[k] ?? 10) * 1000 * frac * (0.75 + rand() * 0.5)) }));
   }
 
   /* ---------- change orders by month, job, and cause ---------- */
   const coRows: Record<string, unknown>[] = [];
   for (const j of jobs) {
     const start = Math.max(0, cur - j.startAgo);
-    const weights = CAUSES.map(() => 0.4 + rand());
-    if (j.code === "114") weights[0] *= 3.2; // design errors drive Route 9 Bridge
+    const weights = p.causes.map(() => 0.4 + rand());
+    if (j.code === p.heavy.job) weights[p.heavy.causeIdx] *= p.heavy.factor;
     const wsum = weights.reduce((a, b) => a + b, 0);
-    const total = j.budget * (0.035 + rand() * 0.03);
+    const total = j.budget * (p.coShare[0] + rand() * p.coShare[1]);
     for (let i = start; i < M; i++) {
-      CAUSES.forEach((c, k) => {
+      p.causes.forEach((c, k) => {
         if (rand() < 0.45) return;
         const amt = (total * (weights[k] / wsum)) / Math.max(1, (M - start) * 0.55);
         coRows.push({ month: months[i], job: j.code, job_name: j.name, cause: c, amount: r0(amt * (0.5 + rand())), count: 1 });
@@ -267,30 +344,29 @@ export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Da
   for (const j of jobs) {
     const start = Math.max(0, cur - j.startAgo);
     for (let i = start; i < M; i++) {
-      const opened = Math.round((2 + rand() * 7) * (i === cur ? curFrac : 1) * (j.code === "114" ? 1.6 : 1));
-      const closed = Math.max(0, Math.round(opened * (0.65 + rand() * 0.4) - (j.code === "114" ? 1 : 0)));
+      const opened = Math.round((2 + rand() * 7) * (i === cur ? curFrac : 1) * (j.code === p.heavy.job ? 1.6 : 1));
+      const closed = Math.max(0, Math.round(opened * (0.65 + rand() * 0.4) - (j.code === p.heavy.job ? 1 : 0)));
       rfiTrend.push({ month: months[i], job: j.code, job_name: j.name, opened, closed });
     }
   }
-  const subjects = ["Rebar spacing at pier 3", "Door hardware spec", "Slab embed conflict", "Roof drain location", "Fire damper access", "Duct routing at grid C", "Anchor bolt pattern", "Curtain wall mullion size"];
-  const ballInCourt = ["Architect", "Structural engineer", "Owner", "MEP engineer"];
+  const { subjects, ballInCourt } = p.rfi;
   const rfis: Record<string, unknown>[] = [];
-  let n = 180;
+  let n = p.rfi.start;
   for (const j of jobs) {
     for (let i = 0; i < Math.min(4, j.rfis); i++) {
-      const days = 3 + Math.floor(rand() * 30) + (j.code === "114" ? 12 : 0);
-      rfis.push({ job: j.code, job_name: j.name, number: `RFI ${n++}`, subject: subjects[Math.floor(rand() * subjects.length)], days_open: days, opened: isoDay(asOf, -days), ball_in_court: ballInCourt[Math.floor(rand() * ballInCourt.length)] });
+      const days = 3 + Math.floor(rand() * 30) + (j.code === p.heavy.job ? 12 : 0);
+      rfis.push({ job: j.code, job_name: j.name, number: `${p.rfi.prefix} ${n++}`, subject: subjects[Math.floor(rand() * subjects.length)], days_open: days, opened: isoDay(asOf, -days), ball_in_court: ballInCourt[Math.floor(rand() * ballInCourt.length)] });
     }
   }
   rfis.sort((a, b) => Number(b.days_open) - Number(a.days_open));
 
   /* ---------- crew hours: this week, and by month ---------- */
   const hours = new Map<string, number>();
-  for (const j of jobs) for (const d of DAYS) hours.set(`${j.code}|${d}`, r0(20 + rand() * 60));
+  for (const j of jobs) for (const d of DAYS) hours.set(`${j.code}|${d}`, r0(p.dailyHours[0] + rand() * p.dailyHours[1]));
   const monthly = new Map<string, number>();
   for (const j of jobs) {
     const actual = jobActual.get(j.code)!;
-    for (let i = 0; i < M; i++) if (actual[i] > 0) monthly.set(`${j.code}|${months[i]}`, r0((actual[i] * 0.33) / LABOR_RATE));
+    for (let i = 0; i < M; i++) if (actual[i] > 0) monthly.set(`${j.code}|${months[i]}`, r0((actual[i] * p.hoursShare) / p.laborRate));
   }
   for (const e of field) {
     const key = `${e.data.job}|${dayLabel(String(e.data.date))}`;
@@ -301,23 +377,22 @@ export function buildDatasets(jobs: JobFact[], entries: Entry[], asOf: Date): Da
   const crew = jobs.flatMap((j) =>
     DAYS.map((d) => {
       const h = hours.get(`${j.code}|${d}`) ?? 0;
-      return { job: j.code, job_name: j.name, day: d, hours: h, labor_cost: r0(h * LABOR_RATE) };
+      return { job: j.code, job_name: j.name, day: d, hours: h, labor_cost: r0(h * p.laborRate) };
     }),
   );
   const crewMonthly = [...monthly.entries()].map(([k, h]) => {
     const [code, month] = k.split("|");
-    return { job: code, job_name: jobState.get(code)?.name ?? code, month, hours: h, labor_cost: r0(h * LABOR_RATE) };
+    return { job: code, job_name: jobState.get(code)?.name ?? code, month, hours: h, labor_cost: r0(h * p.laborRate) };
   });
 
   /* ---------- field reports (newest first, bounded) ---------- */
-  const supers = ["Luis Ortiz", "Kim Alvarez", "Ray Dunn"];
   const sampleReports = jobs.slice(0, 4).map((j, i) => ({
     job: j.code,
     job_name: j.name,
     date: isoDay(asOf, -(i + 1)),
-    crew_hours: 40 + i * 12,
-    by: supers[i % supers.length],
-    note: ["Steel delivery on time", "Waiting on RFI 207 response", "Pour scheduled Thursday", "Inspection passed"][i],
+    crew_hours: p.sample.base + i * p.sample.step,
+    by: p.sample.people[i % p.sample.people.length],
+    note: p.sample.notes[i] ?? "",
     via: "Sample",
   }));
   const entered = [...field].reverse().map((e) => ({

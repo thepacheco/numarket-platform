@@ -6,7 +6,7 @@ import { withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
 import { getPolicy, updateBranding, updateMember, updatePolicy } from "@numarket/db/repo/admin";
 import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllowed } from "@numarket/db/repo/snapshots";
-import { addSource, createReport, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
+import { addSource, getHomeLayout, createReport, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
 import { REPORT_TEMPLATES } from "@numarket/db/demo/config";
 import { companyDatasets, toLayout } from "@/lib/reportDesign";
 import { updateNowLimit } from "@numarket/metering";
@@ -166,11 +166,19 @@ export async function askQuestion(prev: AskState | null, form: FormData): Promis
     if (question.length < 3) return { items, error: "Type a question first." };
     const { answer } = await import("@/lib/ask");
     const { asOfMonth } = await import("@/components/Dashboard");
+    const { vocabFor } = await import("@numarket/db/demo/vocab");
+    const { TIER_LIMITS } = await import("@numarket/metering");
+    /* a monthly allowance keeps the cost of questions predictable (the shared demo is exempt) */
+    const quota = TIER_LIMITS[ctx.tenant.tier].askQuestionsPerMonth;
+    if (quota !== null && !ctx.tenant.isDemo) {
+      const used = await withTenant(ctx.tenant.id, async (db) => (await db.query<{ n: number }>("select count(*)::int as n from audit_log where action = 'ask.question' and at >= date_trunc('month', now())")).rows[0].n, { userId: ctx.user.id });
+      if (used >= quota) return { items, error: `Your plan's ${quota.toLocaleString("en-US")} questions for this month are used up. They reset on the 1st; your admin can see usage under Settings → Usage & plan.` };
+    }
     const ws = await workspace(ctx);
     if (!ws.snapshot) return { items, error: "Your data hasn't had its first update yet." };
     const names = Object.fromEntries(jobsInScope(ws.snapshot.datasets, ctx).map((j) => [j.code, j.name]));
     const scopeNames = ctx.scope ? ctx.scope.values.map((v) => names[v] ?? `job ${v}`).join(", ") : "";
-    const a = answer(question, { datasets: ws.snapshot.datasets, scope: ctx.scope, asOf: asOfMonth(ws.snapshot.published_at, ctx.tenant.timezone) }, scopeNames);
+    const a = answer(question, { datasets: ws.snapshot.datasets, scope: ctx.scope, asOf: asOfMonth(ws.snapshot.published_at, ctx.tenant.timezone) }, scopeNames, vocabFor(ctx.tenant.industry));
     await withTenant(ctx.tenant.id, (db) => audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "ask.question", target: question.slice(0, 200), detail: { answered: a.ok }, ip: meta.ip }), { userId: ctx.user.id });
     return { items: [{ question, answer: a, updated: fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) }, ...items] };
   } catch (e) {
@@ -323,7 +331,36 @@ export async function saveHome(_: ActionResult | null, form: FormData): Promise<
       const layout = cleanLayout({ kpis: form.getAll("kpi").map(String), charts: form.getAll("chart").map(String), panels: form.getAll("panel").map(String) }, ctx, cat);
       await saveHomeLayout(db, ctx.user.id, layout);
       revalidatePath("/");
-      return { ok: true, message: "Saved. Your Home page is updated." };
+      return { ok: true, message: "Saved. Opening your Home page…", redirect: "/" };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Pin a key number or chart from a dashboard to your Home page, or unpin it. */
+export async function pinToHome(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx } = await tenantOrThrow("dashboard.view");
+    const id = str(form, "id");
+    const { catalog, cleanLayout, defaultLayout } = await import("@/lib/home");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const cat = catalog(await listDashboards(db), ctx);
+      const saved = await getHomeLayout(db, ctx.user.id);
+      const layout = saved ? cleanLayout(saved, ctx, cat) : defaultLayout(ctx, cat);
+      const kind = cat.kpis.some((w) => w.id === id) ? "kpis" : cat.charts.some((w) => w.id === id) ? "charts" : null;
+      if (!kind) throw new ActionError("That can't be pinned.");
+      const list = layout[kind];
+      if (list.includes(id)) {
+        layout[kind] = list.filter((x) => x !== id);
+        await saveHomeLayout(db, ctx.user.id, layout);
+        revalidatePath("/");
+        return { ok: true, message: "Removed from Home." };
+      }
+      const max = kind === "kpis" ? 8 : 6;
+      if (list.length >= max) throw new ActionError(`Your Home already has ${max} ${kind === "kpis" ? "key numbers" : "charts"}. Remove one under Customize first.`);
+      layout[kind] = [...list, id];
+      await saveHomeLayout(db, ctx.user.id, layout);
+      revalidatePath("/");
+      return { ok: true, message: "Pinned to Home." };
     }, { userId: ctx.user.id });
   });
 }
@@ -333,7 +370,7 @@ export async function resetHome(_: ActionResult | null): Promise<ActionResult> {
     const { ctx } = await tenantOrThrow("definitions.view");
     await withTenant(ctx.tenant.id, (db) => saveHomeLayout(db, ctx.user.id, null), { userId: ctx.user.id });
     revalidatePath("/");
-    return { ok: true, message: "Back to the default for your role." };
+    return { ok: true, message: "Back to the default for your role. Opening Home…", redirect: "/" };
   });
 }
 

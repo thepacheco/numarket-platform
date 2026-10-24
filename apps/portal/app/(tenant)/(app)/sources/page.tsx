@@ -4,6 +4,7 @@ import { withTenant } from "@numarket/db";
 import { listSources } from "@numarket/db/repo/workspace";
 import { ago, fmtTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Sources" };
 
@@ -18,6 +19,7 @@ export default async function Sources() {
   const next = fmtTime(ws.nextUpdate, ctx.tenant.timezone);
   return (
     <>
+      <HubNav hub="data" current="/sources" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Your data</p>

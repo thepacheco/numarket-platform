@@ -5,6 +5,7 @@ import { withTenant } from "@numarket/db";
 import { listReviews } from "@numarket/db/repo/workspace";
 import { fmtDateTime } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Monthly reviews" };
 
@@ -16,6 +17,7 @@ export default async function Reviews() {
   const reviews = await withTenant(ctx.tenant.id, listReviews);
   return (
     <>
+      <HubNav hub="analyst" current="/reviews" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Insight Review</p>

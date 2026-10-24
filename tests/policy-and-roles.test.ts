@@ -72,6 +72,13 @@ describe("roles", () => {
       expect(can("contributor", p)).toBe(false);
     }
   });
+  it("data plumbing is for admins and owners; viewers read and ask", () => {
+    for (const r of ["editor", "contributor", "viewer"] as const) expect(can(r, "sources.view")).toBe(false);
+    expect(can("viewer", "flags.view")).toBe(false);
+    expect(can("editor", "flags.view")).toBe(true);
+    expect(can("viewer", "ask.use")).toBe(true);
+    expect(can("admin", "sources.view")).toBe(true);
+  });
   it("Contributors can only enter data", () => {
     expect(PERMISSIONS.filter((p) => can("contributor", p))).toEqual(["input.submit", "input.edit_own", "definitions.view"]);
   });

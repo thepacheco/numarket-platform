@@ -42,6 +42,11 @@ const paths: Record<string, string> = {
   trash: "M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13",
   chevron: "M6 9l6 6 6-6",
   x: "M6 6l12 12M18 6L6 18",
+  pin: "M12 17v5M9 3h6l-1 6 3 3H7l3-3-1-6z",
+  drag: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01",
+  spark: "M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6",
+  scan: "M4 8V5a1 1 0 011-1h3M16 4h3a1 1 0 011 1v3M20 16v3a1 1 0 01-1 1h-3M8 20H5a1 1 0 01-1-1v-3M7 12h10",
+  dollar: "M12 3v18M16.5 7.5c0-1.9-2-3-4.5-3s-4.5 1.2-4.5 3.2c0 4.6 9 2.6 9 7.1 0 2-2 3.2-4.5 3.2s-4.5-1.1-4.5-3",
 };
 
 export default function Icon({ name, ...rest }: { name: string } & SVGProps<SVGSVGElement>) {

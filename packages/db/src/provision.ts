@@ -1,5 +1,5 @@
 import { withProvisioner, type Db } from "./client";
-import { buildReviews, CATALOG_TABLES, CHECKS, DASHBOARDS, DATA_REPORTS, DEFINITIONS, DEMO_OTHER_MEMBERS, DEMO_PERSONAS, FLAGS, REPORTS, SCREENS, SOURCES } from "./demo/config";
+import { packFor, type Pack } from "./demo/packs";
 import { latestSnapshot } from "./repo/snapshots";
 import { publishSimulated } from "./repo/snapshots";
 
@@ -9,6 +9,7 @@ import { publishSimulated } from "./repo/snapshots";
    even for the owner. Real tenants are provisioned by the Stage B wizard. */
 
 export type SampleTenantSpec = {
+  industry?: "construction" | "services";
   slug: string;
   name: string;
   tier: "insight" | "operate" | "command";
@@ -20,20 +21,23 @@ export type SampleTenantSpec = {
   allowedMethods: string[];
 };
 
-export const DEMO_SPEC = (hosts: string[]): SampleTenantSpec => ({
-  slug: "demo",
-  name: "Summit Builders",
-  tier: "operate",
-  products: ["foundation", "workspace", "insight"],
-  isDemo: true,
-  hosts,
-  logoText: "SB",
-  allowedMethods: ["demo"],
-  members: [
-    ...DEMO_PERSONAS.map((p) => ({ ...p, persona: p.persona })),
-    ...DEMO_OTHER_MEMBERS.map((m) => ({ ...m, scope: null, persona: null })),
-  ],
-});
+/* The public sample workspace for an industry: its company, people, and content. */
+export const SAMPLE_SPEC = (industry: "construction" | "services", hosts: string[]): SampleTenantSpec => {
+  const p = packFor(industry);
+  return {
+    industry,
+    slug: p.demo.slug,
+    name: p.demo.name,
+    tier: "operate",
+    products: ["foundation", "workspace", "insight", "engineering"],
+    isDemo: true,
+    hosts,
+    logoText: p.demo.logoText,
+    allowedMethods: ["demo"],
+    members: [...p.personas.map((m) => ({ ...m, persona: m.persona })), ...p.otherMembers],
+  };
+};
+export const DEMO_SPEC = (hosts: string[]) => SAMPLE_SPEC("construction", hosts);
 
 export const ACME_SPEC = (hosts: string[]): SampleTenantSpec => ({
   slug: "acme",
@@ -53,9 +57,9 @@ export const ACME_SPEC = (hosts: string[]): SampleTenantSpec => ({
 export async function provisionSampleTenant(spec: SampleTenantSpec): Promise<string> {
   const tenantId = await withProvisioner(async (db) => {
     const r = await db.query<{ id: string }>(
-      `insert into tenants (slug, name, tier, products, is_demo) values ($1, $2, $3, $4, $5)
-       on conflict (slug) do update set name = excluded.name returning id`,
-      [spec.slug, spec.name, spec.tier, spec.products, spec.isDemo],
+      `insert into tenants (slug, name, tier, products, is_demo, industry) values ($1, $2, $3, $4, $5, $6)
+       on conflict (slug) do update set name = excluded.name, products = excluded.products, industry = excluded.industry returning id`,
+      [spec.slug, spec.name, spec.tier, spec.products, spec.isDemo, spec.industry ?? "construction"],
     );
     const id = r.rows[0].id;
     for (const h of spec.hosts) {
@@ -89,20 +93,21 @@ export async function provisionSampleTenant(spec: SampleTenantSpec): Promise<str
          on conflict (tenant_id) do nothing`,
         [tenantId, spec.name, spec.logoText, spec.isDemo ? "This is a sample workspace with fictional data. Pick a person to see what they see." : null, `${spec.name} · Confidential`],
       );
-      await seedContent(db, tenantId);
+      await seedContent(db, tenantId, packFor(spec.industry));
     },
     { tenantId },
   );
 
   await withProvisioner(async (db) => {
-    await publishSimulated(db, { id: tenantId, slug: spec.slug, isDemo: spec.isDemo }, "reset", null);
-    await seedReviews(db, tenantId);
+    await publishSimulated(db, { id: tenantId, slug: spec.slug, isDemo: spec.isDemo, industry: spec.industry }, "reset", null);
+    await seedReviews(db, tenantId, packFor(spec.industry));
   }, { tenantId });
   return tenantId;
 }
 
 /* Workspace content: configuration plus sample flags, sources, and checks. */
-async function seedContent(db: Db, tenantId: string) {
+async function seedContent(db: Db, tenantId: string, pack: Pack) {
+  const { dashboards: DASHBOARDS, reports: REPORTS, screens: SCREENS, dataReports: DATA_REPORTS, catalogTables: CATALOG_TABLES, definitions: DEFINITIONS, flags: FLAGS, sources: SOURCES, checks: CHECKS } = pack;
   /* configuration that is no longer in the sample set is removed */
   await db.query("delete from dashboards where not (slug = any($1))", [DASHBOARDS.map((d) => d.slug)]);
   await db.query("delete from reports where not (slug = any($1))", [REPORTS.map((r) => r.slug)]);
@@ -146,9 +151,9 @@ async function seedContent(db: Db, tenantId: string) {
   }
   for (const d of DEFINITIONS) {
     await db.query(
-      `insert into definitions (tenant_id, key, name, means, formula, sources, owner) values ($1, $2, $3, $4, $5, $6, $7)
-       on conflict (tenant_id, key) do update set name = excluded.name, means = excluded.means, formula = excluded.formula, sources = excluded.sources, owner = excluded.owner`,
-      [tenantId, d.key, d.name, d.means, d.formula, d.sources, d.owner],
+      `insert into definitions (tenant_id, key, name, means, formula, sources, owner, category) values ($1, $2, $3, $4, $5, $6, $7, $8)
+       on conflict (tenant_id, key) do update set name = excluded.name, means = excluded.means, formula = excluded.formula, sources = excluded.sources, owner = excluded.owner, category = excluded.category`,
+      [tenantId, d.key, d.name, d.means, d.formula, d.sources, d.owner, d.category],
     );
   }
   await db.query("delete from flags");
@@ -176,12 +181,12 @@ async function seedContent(db: Db, tenantId: string) {
 }
 
 /* The analyst's reviews, written against the data just published. */
-async function seedReviews(db: Db, tenantId: string) {
+async function seedReviews(db: Db, tenantId: string, pack: Pack) {
   const snap = await latestSnapshot(db);
   if (!snap) return;
   await db.query("delete from reviews");
   const asOf = new Date(snap.published_at);
-  for (const r of buildReviews(snap.datasets, asOf)) {
+  for (const r of pack.buildReviews(snap.datasets, asOf)) {
     /* published a few days after the month closes, never in the future */
     const published = new Date(Math.min(Date.now() - 3600_000, new Date(`${r.period}-01T14:00:00Z`).getTime() + 33 * 86_400_000));
     await db.query("insert into reviews (tenant_id, period, title, analyst, published_at, content) values ($1, $2, $3, $4, $5, $6)", [tenantId, r.period, r.title, r.analyst, published, JSON.stringify(r.content)]);
@@ -193,16 +198,17 @@ async function seedReviews(db: Db, tenantId: string) {
 export async function resetDemoTenant(tenantId: string) {
   await withProvisioner(
     async (db) => {
-      const t = await db.query<{ slug: string; is_demo: boolean }>("select slug, is_demo from tenants where id = $1", [tenantId]);
+      const t = await db.query<{ slug: string; is_demo: boolean; industry: string }>("select slug, is_demo, industry from tenants where id = $1", [tenantId]);
       if (!t.rows[0]?.is_demo) throw new Error("resetDemoTenant: not a demo tenant");
-      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "snapshots", "refresh_runs", "audit_log"]) {
+      const pack = packFor(t.rows[0].industry);
+      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "saved_views", "app_records", "action_status", "snapshots", "refresh_runs", "audit_log"]) {
         await db.query(`delete from ${table}`);
       }
       await db.query("update branding set primary_color = '#22577A', accent_color = '#38A3A5', display_name = (select name from tenants where id = $1)", [tenantId]);
       await db.query("update security_policies set allowed_methods = '{demo}', require_mfa = true, ip_allowlist = '{}', allowed_email_domains = '{}', session_hours = 12, idle_minutes = 60, require_approval = false");
-      await seedContent(db, tenantId);
-      await publishSimulated(db, { id: tenantId, slug: t.rows[0].slug, isDemo: true }, "reset", null);
-      await seedReviews(db, tenantId);
+      await seedContent(db, tenantId, pack);
+      await publishSimulated(db, { id: tenantId, slug: t.rows[0].slug, isDemo: true, industry: t.rows[0].industry }, "reset", null);
+      await seedReviews(db, tenantId, pack);
     },
     { tenantId },
   );

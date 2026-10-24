@@ -6,6 +6,7 @@ import { listCatalog } from "@numarket/db/repo/workspace";
 import Icon from "@/components/Icon";
 import { fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Data tables" };
 
@@ -19,6 +20,7 @@ export default async function DataTables() {
   const visible = tables.filter((t) => !ctx.scope || scopeRows(ds[t.dataset], ctx.scope).length > 0);
   return (
     <>
+      <HubNav hub="data" current="/data" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Foundation</p>

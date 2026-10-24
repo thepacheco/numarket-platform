@@ -1,5 +1,6 @@
 import type { Db } from "../client";
-import { buildDatasets, countRows, ACME_JOBS, SUMMIT_JOBS, type Datasets, type Entry } from "../demo/construction";
+import { buildDatasets, countRows, ACME_JOBS, type Datasets, type Entry } from "../demo/construction";
+import { packFor } from "../demo/packs";
 import { audit } from "./audit";
 
 /* Serving snapshots (Spec §3.4). Dashboards, reports, and exports read the
@@ -32,15 +33,16 @@ export function scopeRows<T extends Record<string, unknown>>(rows: T[] | undefin
   return rows.filter((r) => scope.dimension in r && scope.values.includes(String(r[scope.dimension])));
 }
 
+/* the acme test workspace keeps its own two jobs */
 export function sampleJobsFor(slug: string) {
-  return slug === "acme" ? ACME_JOBS : SUMMIT_JOBS;
+  return slug === "acme" ? ACME_JOBS : null;
 }
 
 export function simulationAllowed(isDemo: boolean) {
   return isDemo || process.env.NODE_ENV !== "production";
 }
 
-type Tenantish = { id: string; slug: string; isDemo: boolean };
+type Tenantish = { id: string; slug: string; isDemo: boolean; industry?: string | null };
 
 /** Rebuild and publish a new snapshot version, applying pending entries. */
 export async function publishSimulated(db: Db, tenant: Tenantish, kind: "scheduled" | "manual" | "reset", triggeredBy: string | null, asOf = new Date()) {
@@ -53,7 +55,7 @@ export async function publishSimulated(db: Db, tenant: Tenantish, kind: "schedul
     `select e.id, e.screen_slug, e.data, e.created_at, u.name as created_by_name
      from input_entries e left join users u on u.id = e.created_by order by e.created_at`,
   );
-  const datasets = buildDatasets(sampleJobsFor(tenant.slug), entries.rows, asOf);
+  const datasets = buildDatasets(sampleJobsFor(tenant.slug), entries.rows, asOf, packFor(tenant.industry).profile);
   const v = await db.query<{ v: number }>("select coalesce(max(version), 0) + 1 as v from snapshots");
   const version = v.rows[0].v;
   const run = await db.query<{ id: string }>(

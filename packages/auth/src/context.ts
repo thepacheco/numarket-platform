@@ -21,6 +21,8 @@ export type Tenant = {
   timezone: string;
   /** Set on prospect sandboxes: the moment it closes. Null for everything else. */
   sandboxUntil: Date | null;
+  /** Decides the workspace's words (job vs. project) and, for samples, its company. */
+  industry: "construction" | "services";
 };
 
 export type Scope = { dimension: string; values: string[] } | null;
@@ -44,9 +46,9 @@ export type TenantAuth =
   | { kind: "blocked"; tenant: Tenant; reason: Exclude<PolicyResult, { ok: true }>["reason"] }
   | { kind: "ok"; ctx: TenantContext };
 
-type TenantRow = { id: string; slug: string; name: string; tier: Tenant["tier"]; products: string[]; is_demo: boolean; status: string; timezone: string; sandbox_expires_at: Date | null };
-const toTenant = (r: TenantRow): Tenant => ({ id: r.id, slug: r.slug, name: r.name, tier: r.tier, products: r.products, isDemo: r.is_demo, status: r.status, timezone: r.timezone, sandboxUntil: r.sandbox_expires_at });
-const TENANT_COLS = "t.id, t.slug, t.name, t.tier, t.products, t.is_demo, t.status, t.timezone, t.sandbox_expires_at";
+type TenantRow = { id: string; slug: string; name: string; tier: Tenant["tier"]; products: string[]; is_demo: boolean; status: string; timezone: string; sandbox_expires_at: Date | null; industry: Tenant["industry"] };
+const toTenant = (r: TenantRow): Tenant => ({ id: r.id, slug: r.slug, name: r.name, tier: r.tier, products: r.products, isDemo: r.is_demo, status: r.status, timezone: r.timezone, sandboxUntil: r.sandbox_expires_at, industry: r.industry === "services" ? "services" : "construction" });
+const TENANT_COLS = "t.id, t.slug, t.name, t.tier, t.products, t.is_demo, t.status, t.timezone, t.sandbox_expires_at, t.industry";
 
 export async function tenantForHost(host: string, cfg: HostConfig): Promise<Tenant | null> {
   return withPlatform(async (db) => {

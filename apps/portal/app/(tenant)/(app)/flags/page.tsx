@@ -5,6 +5,7 @@ import ActionForm, { Submit } from "@/components/ActionForm";
 import { ago } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { flagAction } from "../../actions";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Flags" };
 
@@ -23,6 +24,7 @@ export default async function Flags() {
 
   return (
     <>
+      <HubNav hub="data" current="/flags" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Your data</p>

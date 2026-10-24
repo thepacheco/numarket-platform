@@ -1,20 +1,25 @@
 import type { TenantContext } from "@numarket/auth";
+import { vocabFor } from "@numarket/db/demo/vocab";
 
-/* Navigation follows numarket's products. Each section shows what this
-   person may use; a product the workspace hasn't bought stays visible but
+/* Navigation follows numarket's products, kept short: each product has one or
+   two entries, and each entry opens a hub with tabs. People see only what
+   their role uses; a product the workspace hasn't bought stays visible but
    grayed out, with a page that explains it. */
 
-export type NavItem = { href: string; icon: string; label: string; badge?: "flags"; locked?: boolean };
+export type NavItem = { href: string; icon: string; label: string; badge?: "flags"; locked?: boolean; match?: string[] };
 export type NavSection = { product: "foundation" | "workspace" | "insight" | "engineering"; name: string; tagline: string; owned: boolean; items: NavItem[] };
 
 export const PRODUCT_INFO: Record<NavSection["product"], { name: string; tagline: string; about: string }> = {
   foundation: { name: "Foundation", tagline: "Your clean data", about: "Every source connected, cleaned, checked on every update, and kept in your private database, with written definitions for every number." },
-  workspace: { name: "Workspace", tagline: "Dashboards, inputs, reports", about: "Dashboards that update on their own, input screens that replace spreadsheets and paper, and reports in your format." },
-  insight: { name: "Insight Review", tagline: "Your analyst", about: "A numarket analyst reviews your numbers on a schedule and tells you what changed, what's at risk, and what to do next." },
-  engineering: { name: "Engineering", tagline: "Built for you", about: "Custom apps, automations, and integrations built for your company alone, quoted as a project." },
+  workspace: { name: "Workspace", tagline: "The software your team uses", about: "Dashboards that update on their own, status reports in your branding, input screens that replace spreadsheets and paper, and Ask Your Data." },
+  insight: { name: "Insight Review", tagline: "Your analyst", about: "A named numarket analyst reviews your numbers on a schedule, explains what changed and why, tracks action items to done, and prepares your QBR and board packs." },
+  engineering: { name: "Engineering", tagline: "Apps built for you", about: "Custom apps and automations built for your company alone (estimating, approvals, paper-to-digital intake, write-backs to your systems), quoted as a project." },
 };
 
+const DATA_PATHS = ["/health", "/flags", "/sources", "/data", "/upload", "/definitions"];
+
 export function navFor(ctx: TenantContext): NavSection[] {
+  const v = vocabFor(ctx.tenant.industry);
   const has = (p: string) => ctx.tenant.products.includes(p);
   const section = (product: NavSection["product"], items: NavItem[]): NavSection => {
     const info = PRODUCT_INFO[product];
@@ -27,24 +32,56 @@ export function navFor(ctx: TenantContext): NavSection[] {
       items: owned ? items : [{ href: `/available/${product}`, icon: "lock", label: "Not in your plan", locked: true }],
     };
   };
+
+  /* Foundation: one hub for the data. People who don't manage data see only
+     what they use from it (definitions, uploads). */
   const foundation: NavItem[] = [];
-  if (ctx.can("sources.view")) foundation.push({ href: "/sources", icon: "plug", label: "Sources" });
-  if (ctx.can("input.submit")) foundation.push({ href: "/upload", icon: "upload", label: "Upload files" });
-  if (ctx.can("sources.view")) foundation.push({ href: "/data", icon: "database", label: "Data tables" });
-  if (ctx.can("flags.view")) foundation.push({ href: "/health", icon: "pulse", label: "Data health" }, { href: "/flags", icon: "flag", label: "Flags", badge: "flags" });
-  if (ctx.can("definitions.view")) foundation.push({ href: "/definitions", icon: "book", label: "Definitions" });
+  const dataHome = hubTabs("data", ctx)[0];
+  if (ctx.can("sources.view") || ctx.can("flags.view")) foundation.push({ href: dataHome.href, icon: "database", label: "Your data", badge: ctx.can("flags.view") ? "flags" : undefined, match: DATA_PATHS });
+  else {
+    if (ctx.can("input.submit")) foundation.push({ href: "/upload", icon: "upload", label: "Upload files" });
+    if (ctx.can("definitions.view")) foundation.push({ href: "/definitions", icon: "book", label: "Definitions" });
+  }
 
   const workspace: NavItem[] = [];
   if (ctx.can("dashboard.view")) workspace.push({ href: "/dashboards", icon: "chart", label: "Dashboards" });
-  if (ctx.can("report.view")) workspace.push({ href: "/reports", icon: "report", label: "Status reports" });
-  if (ctx.can("dashboard.view")) workspace.push({ href: "/run", icon: "list", label: "Run a report" });
-  if (ctx.can("input.submit")) workspace.push({ href: "/inputs", icon: "form", label: "Input screens" });
+  if (ctx.can("report.view")) workspace.push({ href: "/reports", icon: "report", label: "Reports", match: ["/reports", "/run"] });
+  if (ctx.can("input.submit")) workspace.push({ href: "/inputs", icon: "form", label: "Input screens", match: ["/inputs"] });
   if (ctx.can("ask.use")) workspace.push({ href: "/ask", icon: "chat", label: "Ask Your Data" });
 
   const insight: NavItem[] = [];
-  if (ctx.can("actions.view")) insight.push({ href: "/reviews", icon: "review", label: "Monthly reviews" });
+  if (ctx.can("actions.view")) insight.push({ href: "/reviews", icon: "review", label: "Your analyst", match: ["/reviews"] });
 
-  return [section("foundation", foundation), section("workspace", workspace), section("insight", insight), section("engineering", [])].filter((s) => !s.owned || s.items.length);
+  const engineering: NavItem[] = [{ href: "/apps", icon: "grid", label: "Apps", match: ["/apps"] }];
+
+  return [section("foundation", foundation), section("workspace", workspace), section("insight", insight), section("engineering", engineering)].filter((s) => !s.owned || s.items.length);
+}
+
+/* The tabs inside each hub, filtered by role. */
+export type HubTab = { href: string; label: string; badge?: "flags" };
+export function hubTabs(hub: "data" | "reports" | "analyst", ctx: TenantContext): HubTab[] {
+  const tabs: (HubTab & { ok: boolean })[] =
+    hub === "data"
+      ? [
+          { href: "/health", label: "Health", ok: ctx.can("flags.view") },
+          { href: "/flags", label: "Flags", badge: "flags", ok: ctx.can("flags.view") },
+          { href: "/sources", label: "Sources", ok: ctx.can("sources.view") },
+          { href: "/data", label: "Tables", ok: ctx.can("sources.view") },
+          { href: "/upload", label: "Upload", ok: ctx.can("input.submit") },
+          { href: "/definitions", label: "Definitions", ok: ctx.can("definitions.view") },
+        ]
+      : hub === "reports"
+        ? [
+            { href: "/reports", label: "Status reports", ok: ctx.can("report.view") },
+            { href: "/run", label: "Run a report", ok: ctx.can("dashboard.view") },
+          ]
+        : [
+            { href: "/reviews", label: "Overview", ok: ctx.can("actions.view") },
+            { href: "/reviews/actions", label: "Action items", ok: ctx.can("actions.view") },
+            { href: "/reviews/qbr", label: "QBR pack", ok: ctx.can("actions.view") && ctx.can("dashboard.view") },
+          ];
+  const out = tabs.filter((t) => t.ok).map(({ ok: _ok, ...t }) => t);
+  return out.length ? out : [{ href: "/definitions", label: "Definitions" }];
 }
 
 export function canSeeSettings(ctx: TenantContext) {
@@ -63,6 +100,7 @@ export function settingsLinks(ctx: TenantContext) {
 export const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", editor: "Editor", contributor: "Contributor", viewer: "Viewer" };
 
 export function scopeLabel(ctx: TenantContext, jobNames: Record<string, string>) {
-  if (!ctx.scope) return "All jobs";
-  return ctx.scope.values.map((v) => jobNames[v] ?? `Job ${v}`).join(", ") + " only";
+  const v = vocabFor(ctx.tenant.industry);
+  if (!ctx.scope) return `All ${v.jobs}`;
+  return ctx.scope.values.map((x) => jobNames[x] ?? `${v.Job} ${x}`).join(", ") + " only";
 }

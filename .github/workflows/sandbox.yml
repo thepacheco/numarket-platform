@@ -15,6 +15,11 @@ on:
       company:
         description: "Prospect's company name (create)"
         required: false
+      industry:
+        description: "Sample data to show (create)"
+        type: choice
+        options: [construction, services]
+        default: construction
       short_name:
         description: "Short name for the address, e.g. acme (optional for create; needed for extend/delete)"
         required: false
@@ -58,6 +63,7 @@ jobs:
           APP_DOMAIN: ${{ vars.APP_DOMAIN }}
           SANDBOX_ACTION: ${{ inputs.action }}
           SANDBOX_COMPANY: ${{ inputs.company }}
+          SANDBOX_INDUSTRY: ${{ inputs.industry }}
           SANDBOX_SHORT_NAME: ${{ inputs.short_name }}
           SANDBOX_DAYS: ${{ inputs.days }}
           SANDBOX_LOGO: ${{ inputs.logo }}

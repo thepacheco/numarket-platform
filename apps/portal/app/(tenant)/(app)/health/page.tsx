@@ -3,6 +3,7 @@ import Link from "next/link";
 import { withTenant } from "@numarket/db";
 import { listChecks } from "@numarket/db/repo/workspace";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Data health" };
 
@@ -14,6 +15,7 @@ export default async function Health() {
   const attention = checks.filter((c) => c.status !== "pass").length;
   return (
     <>
+      <HubNav hub="data" current="/health" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Your data</p>

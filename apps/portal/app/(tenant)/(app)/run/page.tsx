@@ -5,6 +5,7 @@ import { withTenant } from "@numarket/db";
 import { listDataReports } from "@numarket/db/repo/workspace";
 import Icon from "@/components/Icon";
 import { requireTenant } from "@/lib/guard";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Run a report" };
 
@@ -14,6 +15,7 @@ export default async function RunReports() {
   const cats = [...new Set(list.map((r) => r.category))];
   return (
     <>
+      <HubNav hub="reports" current="/run" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Workspace</p>

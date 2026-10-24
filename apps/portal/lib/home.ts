@@ -3,6 +3,7 @@ import type { Block } from "@numarket/blocks";
 import { blockCatalog, isChart, type CatalogItem } from "./catalog";
 import type { TenantContext } from "@numarket/auth";
 import type { HomeLayout } from "@numarket/db/repo/workspace";
+import { vocabFor } from "@numarket/db/demo/vocab";
 
 /* Home is each person's own page (Spec §12.3). They choose key numbers and
    charts from the workspace's dashboards, plus a few panels. Nobody builds
@@ -10,10 +11,10 @@ import type { HomeLayout } from "@numarket/db/repo/workspace";
 
 export type Widget = { id: string; title: string; from: string; block: Block };
 export const PANELS = [
-  { id: "review", title: "Latest Insight Review", needs: "actions.view" },
-  { id: "attention", title: "Data that needs attention", needs: "flags.view" },
+  { id: "attention", title: "Needs you (flags, action items, waiting entries)", needs: null },
+  { id: "review", title: "Your analyst's latest review", needs: "actions.view" },
   { id: "entries", title: "Your entries", needs: "input.submit" },
-  { id: "freshness", title: "Your data", needs: null },
+  { id: "freshness", title: "Your data (last and next update)", needs: null },
   { id: "reports", title: "Reports", needs: "report.view" },
 ] as const;
 
@@ -26,12 +27,13 @@ export function catalog(dashboards: { slug: string; title: string; layout: unkno
 const byTitle = (list: Widget[], titles: string[]) => titles.map((t) => list.find((w) => w.title === t)?.id).filter((x): x is string => !!x);
 
 export function defaultLayout(ctx: TenantContext, cat: ReturnType<typeof catalog>): HomeLayout {
+  const v = vocabFor(ctx.tenant.industry);
   const panels = PANELS.filter((p) => !p.needs || ctx.can(p.needs as never)).map((p) => p.id as string);
   if (!ctx.can("dashboard.view")) return { kpis: [], charts: [], panels: panels.filter((p) => p !== "reports") };
   if (ctx.scope)
     return {
-      kpis: byTitle(cat.kpis, ["Job cost in period", "Cost performance", "Cost vs. budget for work done", "Open RFIs"]),
-      charts: byTitle(cat.charts, ["Budget for work done vs. actual cost", "Change orders by cause"]),
+      kpis: byTitle(cat.kpis, [`${v.Job} cost in period`, "Cost performance", "Cost vs. budget for work done", v.rfiShort]),
+      charts: byTitle(cat.charts, ["Budget for work done vs. actual cost", `${v.ChangeOrders} by cause`]),
       panels: panels.filter((p) => p !== "review"),
     };
   return {

@@ -1,10 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useRef } from "react";
 import Icon from "./Icon";
 import type { AskState } from "@/lib/ask";
 
-export default function AskBox({ action, suggested, defs }: { action: (p: AskState | null, f: FormData) => Promise<AskState>; suggested: string[]; defs: Record<string, string> }) {
+/* Ask a question; answers stack up below (newest first). Compact mode, for
+   Home and dashboards, keeps only the latest answer and links to the full
+   Ask Your Data page. */
+export default function AskBox({
+  action, suggested, defs, compact = false, placeholder = "Ask a question about your numbers",
+}: { action: (p: AskState | null, f: FormData) => Promise<AskState>; suggested: string[]; defs: Record<string, string>; compact?: boolean; placeholder?: string }) {
   const [state, formAction, pending] = useActionState(action, null);
   const input = useRef<HTMLInputElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -14,10 +20,10 @@ export default function AskBox({ action, suggested, defs }: { action: (p: AskSta
     form.current.requestSubmit();
   };
   return (
-    <div className="ask">
+    <div className={`ask ${compact ? "ask-compact" : ""}`}>
       <form ref={form} action={formAction} className="ask-box">
         <Icon name="chat" />
-        <input ref={input} name="q" className="input" placeholder="Ask a question about your numbers" maxLength={300} autoComplete="off" aria-label="Your question" />
+        <input ref={input} name="q" className="input" placeholder={placeholder} maxLength={300} autoComplete="off" aria-label="Your question" />
         <button type="submit" className="btn btn-primary" disabled={pending}>
           {pending ? "Thinking…" : "Ask"}
         </button>
@@ -30,8 +36,8 @@ export default function AskBox({ action, suggested, defs }: { action: (p: AskSta
         ))}
       </div>
       {state?.error && <p className="notice risk">{state.error}</p>}
-      {state?.items.map((it, i) => (
-        <section key={state.items.length - i} className={`card ask-answer${it.answer.ok ? "" : " ask-miss"}`}>
+      {(compact ? state?.items.slice(0, 1) : state?.items)?.map((it, i) => (
+        <section key={(state?.items.length ?? 0) - i} className={`card ask-answer${it.answer.ok ? "" : " ask-miss"}`}>
           <p className="ask-q">{it.question}</p>
           <h2>{it.answer.title}</h2>
           <p style={{ margin: "0 0 10px" }}>{it.answer.text}</p>
@@ -78,6 +84,11 @@ export default function AskBox({ action, suggested, defs }: { action: (p: AskSta
           )}
         </section>
       ))}
+      {compact && state?.items.length ? (
+        <Link href="/ask" className="small ask-more">
+          Ask more on the Ask Your Data page
+        </Link>
+      ) : null}
     </div>
   );
 }

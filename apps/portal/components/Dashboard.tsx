@@ -1,8 +1,14 @@
 import Link from "next/link";
-import { RANGE_OPTIONS, resolveRange, validYm, visibleRows, type DashboardLayout, type Datasets, type Page, type RangeSel } from "@numarket/blocks";
+import { blockId, RANGE_OPTIONS, resolveRange, validYm, visibleRows, type Block, type DashboardLayout, type Datasets, type Page, type RangeSel } from "@numarket/blocks";
 import { BlockView, type BlockContext, type Defs } from "@numarket/blocks/react";
 import type { TenantContext } from "@numarket/auth";
+import { vocabFor } from "@numarket/db/demo/vocab";
+import type { ActionResult } from "./ActionForm";
 import AutoSubmitSelect from "./AutoSubmitSelect";
+import PinButton from "./PinButton";
+
+export type Pins = { pinned: Set<string>; action: (p: ActionResult | null, f: FormData) => Promise<ActionResult> };
+const pinnable = (b: Block) => ["kpi", "trend", "columns", "bar", "stacked"].includes(b.type);
 
 /* A dashboard: page tabs, a filter bar (date range, job), and rows of
    building blocks. Scope and filters are applied on the server before
@@ -35,7 +41,7 @@ export function stateQuery(s: DashState, override: Record<string, string | undef
   return q.toString();
 }
 
-export function DashboardView({ base, layout, datasets, ctx, state, defs, updated }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string }) {
+export function DashboardView({ base, layout, datasets, ctx, state, defs, updated, pins, before }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string; pins?: Pins; before?: React.ReactNode }) {
   const c: BlockContext = { datasets, scope: ctx.scope, eq: { job: state.job }, range: state.range, defs, updated };
   return (
     <>
@@ -48,22 +54,30 @@ export function DashboardView({ base, layout, datasets, ctx, state, defs, update
           ))}
         </nav>
       )}
-      <FilterBar base={base} state={state} />
-      <Rows rows={state.page.rows} c={c} />
+      <FilterBar base={base} state={state} ctx={ctx} />
+      {before}
+      <Rows rows={state.page.rows} c={c} pins={pins} />
     </>
   );
 }
 
-export function Rows({ rows, c }: { rows: Page["rows"]; c: BlockContext }) {
+export function Rows({ rows, c, pins }: { rows: Page["rows"]; c: BlockContext; pins?: Pins }) {
   return (
     <div className="dash">
       {rows.map((row, i) => {
         const kpis = row.every((b) => b.type === "kpi");
         return (
           <div className={`dash-row ${kpis ? "kpis" : ""}`} key={i} style={kpis ? { ["--cols" as string]: Math.min(4, row.length) } : undefined}>
-            {row.map((b, j) => (
-              <BlockView key={j} block={b} c={c} />
-            ))}
+            {row.map((b, j) =>
+              pins && pinnable(b) ? (
+                <div key={j} className={`pin-wrap span-${b.span ?? 1}`}>
+                  <BlockView block={b} c={c} />
+                  <PinButton id={blockId(b)} pinned={pins.pinned.has(blockId(b))} action={pins.action} />
+                </div>
+              ) : (
+                <BlockView key={j} block={b} c={c} />
+              ),
+            )}
           </div>
         );
       })}
@@ -71,7 +85,8 @@ export function Rows({ rows, c }: { rows: Page["rows"]; c: BlockContext }) {
   );
 }
 
-function FilterBar({ base, state }: { base: string; state: DashState }) {
+function FilterBar({ base, state, ctx }: { base: string; state: DashState; ctx: TenantContext }) {
+  const v = vocabFor(ctx.tenant.industry);
   const r = state.range;
   if (!r && !state.jobs.length) return <div style={{ height: 16 }} />;
   return (
@@ -123,9 +138,9 @@ function FilterBar({ base, state }: { base: string; state: DashState }) {
               <input type="hidden" name="to" value={r.current.to} />
             </>
           )}
-          <label htmlFor="f-job">Job</label>
+          <label htmlFor="f-job">{v.Job}</label>
           <AutoSubmitSelect id="f-job" name="job" defaultValue={state.job ?? ""} className="input">
-            <option value="">All jobs</option>
+            <option value="">All {v.jobs}</option>
             {state.jobs.map((o) => (
               <option key={o.v} value={o.v}>
                 {o.l}

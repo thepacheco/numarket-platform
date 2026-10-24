@@ -14,9 +14,9 @@ export async function getDashboard(db: Db, slug: string) {
 }
 
 /* ---------- definitions ---------- */
-export type DefinitionRow = { key: string; name: string; means: string; formula: string; sources: string; owner: string; updated_at: Date };
+export type DefinitionRow = { key: string; name: string; means: string; formula: string; sources: string; owner: string; category: string; updated_at: Date };
 export async function listDefinitions(db: Db) {
-  return (await db.query<DefinitionRow>("select key, name, means, formula, sources, owner, updated_at from definitions order by name")).rows;
+  return (await db.query<DefinitionRow>("select key, name, means, formula, sources, owner, category, updated_at from definitions order by name")).rows;
 }
 export async function suggestDefinition(db: Db, key: string, body: string, userId: string) {
   await db.query("insert into definition_suggestions (tenant_id, key, body, suggested_by) values (current_tenant(), $1, $2, $3)", [key, body, userId]);
@@ -218,6 +218,32 @@ export async function listReviews(db: Db) {
 export async function getReview(db: Db, id: string) {
   const ok = /^[0-9a-f-]{36}$/i.test(id);
   return ok ? ((await db.query<ReviewRow>("select id, period, title, analyst, published_at, content from reviews where id = $1", [id])).rows[0] ?? null) : null;
+}
+
+/* ---------- Insight Review action items ---------- */
+export type ActionStatus = "open" | "in_progress" | "done";
+export type ActionItem = { reviewId: string; reviewTitle: string; period: string; idx: number; title: string; detail: string; owner: string; due: string; status: ActionStatus; updatedAt: Date | null };
+
+/** Every recommendation from the reviews, with where it stands. */
+export async function listActionItems(db: Db): Promise<ActionItem[]> {
+  const reviews = await listReviews(db);
+  const st = (await db.query<{ review_id: string; idx: number; status: ActionStatus; updated_at: Date }>("select review_id, idx, status, updated_at from action_status")).rows;
+  const key = (r: string, i: number) => `${r}|${i}`;
+  const map = new Map(st.map((x) => [key(x.review_id, x.idx), x]));
+  return reviews.flatMap((r) =>
+    (r.content.recommendations ?? []).map((a, idx) => {
+      const s = map.get(key(r.id, idx));
+      return { reviewId: r.id, reviewTitle: r.title, period: r.period, idx, title: a.title, detail: a.detail, owner: a.owner, due: a.due, status: s?.status ?? "open", updatedAt: s?.updated_at ?? null };
+    }),
+  );
+}
+
+export async function setActionStatus(db: Db, reviewId: string, idx: number, status: ActionStatus, userId: string) {
+  await db.query(
+    `insert into action_status (tenant_id, review_id, idx, status, updated_by, updated_at) values (current_tenant(), $1, $2, $3, $4, now())
+     on conflict (tenant_id, review_id, idx) do update set status = excluded.status, updated_by = excluded.updated_by, updated_at = now()`,
+    [reviewId, idx, status, userId],
+  );
 }
 
 /* ---------- Home layout (per person) ---------- */

@@ -37,11 +37,15 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 export type Role = "owner" | "admin" | "editor" | "contributor" | "viewer";
 
-const viewer: Permission[] = ["dashboard.view", "report.view", "definitions.view", "flags.view", "sources.view", "actions.view"];
+/* People see what their job needs. Viewers read the numbers and ask
+   questions; data plumbing (sources, tables) is for admins and owners;
+   flags go to the people who can answer them. */
+const viewer: Permission[] = ["dashboard.view", "report.view", "definitions.view", "actions.view", "ask.use"];
 const contributor: Permission[] = ["input.submit", "input.edit_own", "definitions.view"];
 const editor: Permission[] = [
   ...viewer,
   ...contributor,
+  "flags.view",
   "dashboard.export",
   "report.edit",
   "report.publish",
@@ -65,9 +69,9 @@ export const ROLE_PERMISSIONS: Record<Role, ReadonlySet<Permission>> = {
 export const ROLES: { id: Role; name: string; summary: string }[] = [
   { id: "owner", name: "Owner", summary: "Everything an Admin can do, plus the security policy, billing contact, and full data export." },
   { id: "admin", name: "Admin", summary: "Users and roles, branding, alerts, report schedules, source connections, audit log, and usage." },
-  { id: "editor", name: "Editor", summary: "Enter data, edit and publish reports, resolve data flags, and manage their own alerts." },
+  { id: "editor", name: "Editor", summary: "Enter data, edit and publish reports, answer data flags, and manage their own alerts." },
   { id: "contributor", name: "Contributor", summary: "Enter data in input screens. Nothing else." },
-  { id: "viewer", name: "Viewer", summary: "View dashboards and reports within their data scope." },
+  { id: "viewer", name: "Viewer", summary: "Read dashboards, reports, and reviews, and ask questions, within their data scope." },
 ];
 
 export function isRole(r: string): r is Role {

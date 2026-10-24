@@ -1,5 +1,6 @@
 import { fmt, monthLabel, resolveRange, visibleRows, type Datasets } from "@numarket/blocks";
 import type { Scope } from "@numarket/db/repo/snapshots";
+import { CONSTRUCTION, type Vocab } from "@numarket/db/demo/vocab";
 
 /* Ask Your Data, as the demo runs it. A question is matched to one of the
    question types below and answered from the same published data the
@@ -18,16 +19,25 @@ export type Answer = {
 
 export type AskState = { items: { question: string; answer: Answer; updated: string }[]; error?: string };
 
-export const SUGGESTED = [
-  "Which jobs are over budget?",
-  "Who owes us money over 60 days?",
-  "How is Route 9 Bridge doing?",
-  "What were change orders last quarter, by cause?",
-  "Which RFIs have been open the longest?",
-  "How much cash do we have?",
-  "What was net income last month?",
-  "Crew hours by job last month",
-];
+/* Questions to start from, in the workspace's own words. A dashboard
+   suggests the questions that fit it. */
+export function suggestedFor(v: Vocab, scoped: boolean, focus?: "financials" | "projects"): string[] {
+  const svc = v.industry === "services";
+  const projects = [
+    `Which ${v.jobs} are over budget?`,
+    svc ? "How is Customer Portal Rebuild doing?" : "How is Route 9 Bridge doing?",
+    `What were ${v.changeOrders} last quarter, by cause?`,
+    svc ? "What are we waiting on from clients?" : "Which RFIs have been open the longest?",
+    `${v.Hours} by ${v.job} last month`,
+  ];
+  const company = ["Who owes us money over 60 days?", "How much cash do we have?", "What was net income last month?", `Who are our biggest ${v.customers} this year?`];
+  if (scoped) return projects;
+  if (focus === "projects") return projects;
+  if (focus === "financials") return company;
+  return [projects[0], company[0], projects[1], projects[2], projects[3], company[1], company[2], projects[4]];
+}
+/* kept for older callers */
+export const SUGGESTED = suggestedFor(CONSTRUCTION, false);
 
 type Ctx = { datasets: Datasets; scope: Scope; asOf: string };
 type Row = Record<string, unknown>;
@@ -38,14 +48,14 @@ const sum = (rows: Row[], f: string) => rows.reduce((t, r) => t + n(r[f]), 0);
 const has = (q: string, ...words: (string | RegExp)[]) => words.some((w) => (typeof w === "string" ? q.includes(w) : w.test(q)));
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
-const COMPANY_ONLY = (scopeNames: string) =>
-  ({ ok: false, title: "That's a company-wide number", text: `Your access covers ${scopeNames} only, so company-wide totals like this aren't shown to you. Ask about your jobs instead.`, defs: [], basis: "" }) satisfies Answer;
+const COMPANY_ONLY = (scopeNames: string, v: Vocab) =>
+  ({ ok: false, title: "That's a company-wide number", text: `Your access covers ${scopeNames} only, so company-wide totals like this aren't shown to you. Ask about your ${v.jobs} instead.`, defs: [], basis: "" }) satisfies Answer;
 
 function findJob(q: string, jobs: Row[]) {
   for (const j of jobs) {
     const name = String(j.name).toLowerCase();
     const code = String(j.job).toLowerCase();
-    if (q.includes(name) || new RegExp(`\\b(job|#)\\s*${code}\\b`).test(q) || new RegExp(`\\b${code}\\b`).test(q) && /^\d+$/.test(code)) return j;
+    if (q.includes(name) || new RegExp(`\\b(job|project|#)\\s*${code}\\b`).test(q) || new RegExp(`\\b${code}\\b`).test(q) && /^\d+$/.test(code)) return j;
     const words = name.split(/\s+/).filter((w) => w.length > 3);
     if (words.length >= 2 && words.every((w) => q.includes(w))) return j;
   }
@@ -61,7 +71,7 @@ function periodFrom(q: string, asOf: string) {
   return resolveRange(asOf, "lm");
 }
 
-export function answer(question: string, c: Ctx, scopeNames: string): Answer {
+export function answer(question: string, c: Ctx, scopeNames: string, v: Vocab = CONSTRUCTION): Answer {
   const q = question.toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
   const jobs = visibleRows(c.datasets, "job_summary", c.scope);
   const job = findJob(q, jobs);
@@ -70,7 +80,7 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
   const period = periodFrom(q, c.asOf);
 
   /* change orders */
-  if (has(q, "change order", /\bcos?\b/)) {
+  if (has(q, "change order", /\bcos?\b/, "scope change", "scope creep")) {
     const rows = visibleRows(c.datasets, "change_orders", c.scope, { eq: jobEq, range: period.current });
     const by = new Map<string, { count: number; amount: number }>();
     const key = job || has(q, "cause", "why", "reason") ? "cause" : "job_name";
@@ -85,32 +95,32 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     const total = sum(rows, "amount");
     return {
       ok: true,
-      title: `Change orders${job ? ` on ${job.name}` : ""}, ${period.label}`,
-      text: rows.length ? `${sum(rows, "count")} change orders for ${money(total)}. The largest share is ${sorted[0][0]} at ${money(sorted[0][1].amount)} (${Math.round((sorted[0][1].amount / total) * 100)}%).` : "No change orders in that period.",
-      table: { columns: [key === "cause" ? "Cause" : "Job", "Count", "Amount"], numeric: [false, true, true], rows: sorted.map(([k, v]) => [k, String(v.count), money(v.amount)]) },
-      defs: ["Change orders"],
-      basis: `Change orders, ${period.label}`,
+      title: `${v.ChangeOrders}${job ? ` on ${job.name}` : ""}, ${period.label}`,
+      text: rows.length ? `${sum(rows, "count")} ${v.changeOrders} for ${money(total)}. The largest share is ${sorted[0][0]} at ${money(sorted[0][1].amount)} (${Math.round((sorted[0][1].amount / total) * 100)}%).` : `No ${v.changeOrders} in that period.`,
+      table: { columns: [key === "cause" ? "Cause" : v.Job, "Count", "Amount"], numeric: [false, true, true], rows: sorted.map(([k, x]) => [k, String(x.count), money(x.amount)]) },
+      defs: [v.ChangeOrders],
+      basis: `${v.ChangeOrders}, ${period.label}`,
     };
   }
 
   /* RFIs */
-  if (has(q, "rfi", "request for information", "requests for information")) {
+  if (has(q, "rfi", "request for information", "requests for information", "client request", "waiting on", "waiting for")) {
     const rows = visibleRows(c.datasets, "rfis", c.scope, { eq: jobEq }).slice(0, 8);
     const waiting = new Map<string, number>();
     for (const r of rows) waiting.set(String(r.ball_in_court), (waiting.get(String(r.ball_in_court)) ?? 0) + 1);
     const top = [...waiting.entries()].sort((a, b) => b[1] - a[1])[0];
     return {
       ok: true,
-      title: `Oldest open RFIs${job ? ` on ${job.name}` : ""}`,
-      text: rows.length ? `${rows[0].number} on ${rows[0].job_name} has been open ${rows[0].days_open} days, waiting on ${rows[0].ball_in_court}. Of the ${rows.length} oldest, ${top[1]} are waiting on ${top[0]}.` : "No open RFIs.",
-      table: { columns: ["RFI", "Job", "Subject", "Waiting on", "Days open"], numeric: [false, false, false, false, true], rows: rows.map((r) => [String(r.number), String(r.job_name), String(r.subject), String(r.ball_in_court), String(r.days_open)]) },
-      defs: ["Open RFIs"],
-      basis: "Open RFIs, as of the last update",
+      title: `Oldest open ${v.rfis}${job ? ` on ${job.name}` : ""}`,
+      text: rows.length ? `${rows[0].number} on ${rows[0].job_name} has been open ${rows[0].days_open} days, waiting on ${rows[0].ball_in_court}. Of the ${rows.length} oldest, ${top[1]} are waiting on ${top[0]}.` : `No open ${v.rfis}.`,
+      table: { columns: [v.rfiCol, v.Job, "Subject", "Waiting on", "Days open"], numeric: [false, false, false, false, true], rows: rows.map((r) => [String(r.number), String(r.job_name), String(r.subject), String(r.ball_in_court), String(r.days_open)]) },
+      defs: [v.rfiShort],
+      basis: `${v.rfiShort}, as of the last update`,
     };
   }
 
   /* crew hours */
-  if (has(q, "crew", "hours", "labor", "labour", "manpower")) {
+  if (has(q, "crew", "hours", "labor", "labour", "manpower", "billable", "timesheet", "time entries")) {
     const rows = visibleRows(c.datasets, "crew_hours_monthly", c.scope, { eq: jobEq, range: period.current });
     const by = new Map<string, { hours: number; cost: number }>();
     for (const r of rows) {
@@ -122,17 +132,17 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     const sorted = [...by.entries()].sort((a, b) => b[1].hours - a[1].hours);
     return {
       ok: true,
-      title: `Crew hours${job ? ` on ${job.name}` : " by job"}, ${period.label}`,
-      text: rows.length ? `${fmt(sum(rows, "hours"), "hours")} across ${sorted.length} ${sorted.length === 1 ? "job" : "jobs"}, about ${money(sum(rows, "labor_cost"))} in labor.` : "No crew hours reported in that period.",
-      table: { columns: ["Job", "Crew hours", "Labor cost"], numeric: [false, true, true], rows: sorted.map(([k, v]) => [k, fmt(v.hours, "hours"), money(v.cost)]) },
-      defs: ["Crew hours", "Labor cost"],
-      basis: `Daily field reports, ${period.label}`,
+      title: `${v.Hours}${job ? ` on ${job.name}` : ` by ${v.job}`}, ${period.label}`,
+      text: rows.length ? `${fmt(sum(rows, "hours"), "hours")} across ${sorted.length} ${sorted.length === 1 ? v.job : v.jobs}, about ${money(sum(rows, "labor_cost"))} in ${v.laborCost.toLowerCase()}.` : `No ${v.hours} reported in that period.`,
+      table: { columns: [v.Job, v.Hours, v.laborCost], numeric: [false, true, true], rows: sorted.map(([k, x]) => [k, fmt(x.hours, "hours"), money(x.cost)]) },
+      defs: [v.Hours, v.laborCost],
+      basis: `${v.fieldReportsLong}, ${period.label}`,
     };
   }
 
   /* receivables */
   if (has(q, "owe us", "owes us", "owed", "receivable", /\bar\b/, "collect", "unpaid invoice", "overdue", "past due", "slow pay")) {
-    if (scoped) return COMPANY_ONLY(scopeNames);
+    if (scoped) return COMPANY_ONLY(scopeNames, v);
     const rows = visibleRows(c.datasets, "ar_aging", null);
     const over60 = (r: Row) => n(r.d61_90) + n(r.d90p);
     const total = sum(rows, "total");
@@ -141,17 +151,17 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     const shown = wantOld ? old : [...rows].sort((a, b) => n(b.total) - n(a.total)).slice(0, 8);
     return {
       ok: true,
-      title: wantOld ? "Customers who owe you over 60 days" : "Who owes you",
-      text: `Customers owe ${money(total)} in all. ${old.length ? `${money(sum(old, "d61_90") + sum(old, "d90p"))} is over 60 days old, most of it from ${old[0].customer} (${money(over60(old[0]))}).` : "Nothing is over 60 days old."}`,
-      table: { columns: ["Customer", "Current", "1–60 days", "Over 60 days", "Total"], numeric: [false, true, true, true, true], rows: shown.map((r) => [String(r.customer), money(n(r.current)), money(n(r.d1_30) + n(r.d31_60)), money(over60(r)), money(n(r.total))]) },
-      defs: ["Customers owe you", "Owed for over 60 days"],
+      title: wantOld ? `${v.Customers} who owe you over 60 days` : "Who owes you",
+      text: `${v.Customers} owe ${money(total)} in all. ${old.length ? `${money(sum(old, "d61_90") + sum(old, "d90p"))} is over 60 days old, most of it from ${old[0].customer} (${money(over60(old[0]))}).` : "Nothing is over 60 days old."}`,
+      table: { columns: [v.Customer, "Current", "1–60 days", "Over 60 days", "Total"], numeric: [false, true, true, true, true], rows: shown.map((r) => [String(r.customer), money(n(r.current)), money(n(r.d1_30) + n(r.d31_60)), money(over60(r)), money(n(r.total))]) },
+      defs: [`${v.Customers} owe you`, "Owed for over 60 days"],
       basis: "Receivables aging, as of the last update",
     };
   }
 
   /* payables */
   if (has(q, "we owe", "payable", /\bap\b/, "bills", "vendors", "suppliers", "subs ")) {
-    if (scoped) return COMPANY_ONLY(scopeNames);
+    if (scoped) return COMPANY_ONLY(scopeNames, v);
     const rows = [...visibleRows(c.datasets, "ap_aging", null)].sort((a, b) => n(b.total) - n(a.total));
     return {
       ok: true,
@@ -165,7 +175,7 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
 
   /* cash */
   if (has(q, "cash", "bank", "in the bank")) {
-    if (scoped) return COMPANY_ONLY(scopeNames);
+    if (scoped) return COMPANY_ONLY(scopeNames, v);
     const rows = visibleRows(c.datasets, "cash", null).filter((r) => String(r.month) < c.asOf);
     const last = rows[rows.length - 1];
     const prev = rows[rows.length - 2];
@@ -183,7 +193,7 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
 
   /* profit */
   if (has(q, "net income", "profit", "margin", "p&l", "p and l", "making money", "earnings", "expenses", "opex")) {
-    if (scoped) return COMPANY_ONLY(scopeNames);
+    if (scoped) return COMPANY_ONLY(scopeNames, v);
     const rows = visibleRows(c.datasets, "pnl", null, { range: period.current });
     const prior = period.prior ? visibleRows(c.datasets, "pnl", null, { range: period.prior }) : [];
     const sec = (rs: Row[], s: string) => sum(rs.filter((r) => r.section === s), "amount");
@@ -216,8 +226,8 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
   }
 
   /* revenue */
-  if (has(q, "revenue", "billed", "billing", "sales", "invoiced", "income", "top customer", "biggest customer")) {
-    if (scoped) return COMPANY_ONLY(scopeNames);
+  if (has(q, "revenue", "billed", "billing", "sales", "invoiced", "income", "fees", "top customer", "biggest customer", "top client", "biggest client")) {
+    if (scoped) return COMPANY_ONLY(scopeNames, v);
     const rows = visibleRows(c.datasets, "revenue_by_customer", null, { range: period.current });
     const prior = period.prior ? visibleRows(c.datasets, "revenue_by_customer", null, { range: period.prior }) : [];
     const by = new Map<string, number>();
@@ -228,10 +238,10 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     return {
       ok: true,
       title: `Revenue, ${period.label}`,
-      text: `${money(total)}${before ? `, ${total >= before ? "up" : "down"} ${Math.abs(Math.round(((total - before) / before) * 100))}% ${period.compareLabel}` : ""}. The largest customer was ${sorted[0]?.[0]} at ${money(sorted[0]?.[1] ?? 0)}.`,
-      table: { columns: ["Customer", "Revenue", "Share"], numeric: [false, true, true], rows: sorted.slice(0, 8).map(([k, v]) => [k, money(v), `${Math.round((v / total) * 100)}%`]) },
+      text: `${money(total)}${before ? `, ${total >= before ? "up" : "down"} ${Math.abs(Math.round(((total - before) / before) * 100))}% ${period.compareLabel}` : ""}. The largest ${v.customer} was ${sorted[0]?.[0]} at ${money(sorted[0]?.[1] ?? 0)}.`,
+      table: { columns: [v.Customer, "Revenue", "Share"], numeric: [false, true, true], rows: sorted.slice(0, 8).map(([k, x]) => [k, money(x), `${Math.round((x / total) * 100)}%`]) },
       defs: ["Revenue"],
-      basis: `Revenue by customer, ${period.label}`,
+      basis: `Revenue by ${v.customer}, ${period.label}`,
     };
   }
 
@@ -241,15 +251,15 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     const rows = job ? [job] : over.length ? over : jobs;
     return {
       ok: true,
-      title: job ? `${job.name}: cost vs. budget` : "Jobs costing more than budgeted",
+      title: job ? `${job.name}: cost vs. budget` : `${v.Jobs} costing more than budgeted`,
       text: job
         ? `${job.name} has spent ${money(n(job.actual))} for work budgeted at ${money(n(job.earned))}, so it is ${fmt(n(job.over), "over")} (cost performance ${fmt(job.cpi, "dec2")}).`
         : over.length
-          ? `${over.length} of ${jobs.length} jobs are costing more than the budget for the work done: ${list(over.slice(0, 3).map((j) => `${j.name} (${money(n(j.over))} over)`))}.`
-          : "Every job is at or under the budget for the work done.",
-      table: { columns: ["Job", "Budget for work done", "Spent", "Over / under", "Cost performance"], numeric: [false, true, true, true, true], rows: rows.map((j) => [String(j.name), money(n(j.earned)), money(n(j.actual)), fmt(n(j.over), "over"), fmt(j.cpi, "dec2")]) },
+          ? `${over.length} of ${jobs.length} ${v.jobs} are costing more than the budget for the work done: ${list(over.slice(0, 3).map((j) => `${j.name} (${money(n(j.over))} over)`))}.`
+          : `Every ${v.job} is at or under the budget for the work done.`,
+      table: { columns: [v.Job, "Budget for work done", "Spent", "Over / under", "Cost performance"], numeric: [false, true, true, true, true], rows: rows.map((j) => [String(j.name), money(n(j.earned)), money(n(j.actual)), fmt(n(j.over), "over"), fmt(j.cpi, "dec2")]) },
       defs: ["Cost vs. budget for work done", "Cost performance"],
-      basis: "Job costs to date",
+      basis: `${v.Job} costs to date`,
     };
   }
 
@@ -259,20 +269,20 @@ export function answer(question: string, c: Ctx, scopeNames: string): Answer {
     const j = rows[0];
     return {
       ok: true,
-      title: job ? `${job.name} (job ${job.job})` : "Every job at a glance",
+      title: job ? `${job.name} (${v.job} ${job.job})` : `Every ${v.job} at a glance`,
       text: job
-        ? `${Math.round(n(j.pct_complete) * 100)}% complete for ${String(j.customer)}. Spent ${money(n(j.actual))} of a ${money(n(j.budget))} budget, ${fmt(n(j.over), "over")} for the work done. ${j.open_rfis} open RFIs and ${money(n(j.change_orders))} in change orders.`
-        : `${jobs.length} jobs. ${jobs.filter((x) => x.status === "risk").length} at risk, ${jobs.filter((x) => x.status === "watch").length} to watch.`,
-      table: { columns: ["Job", "Complete", "Budget", "Spent", "Over / under", "Open RFIs"], numeric: [false, true, true, true, true, true], rows: rows.map((x) => [String(x.name), `${Math.round(n(x.pct_complete) * 100)}%`, money(n(x.budget)), money(n(x.actual)), fmt(n(x.over), "over"), String(x.open_rfis)]) },
-      defs: ["Percent complete", "Spent to date", "Cost vs. budget for work done", "Open RFIs"],
-      basis: "Job costs to date",
+        ? `${Math.round(n(j.pct_complete) * 100)}% complete for ${String(j.customer)}. Spent ${money(n(j.actual))} of a ${money(n(j.budget))} budget, ${fmt(n(j.over), "over")} for the work done. ${j.open_rfis} open ${v.rfis} and ${money(n(j.change_orders))} in ${v.changeOrders}.`
+        : `${jobs.length} ${v.jobs}. ${jobs.filter((x) => x.status === "risk").length} at risk, ${jobs.filter((x) => x.status === "watch").length} to watch.`,
+      table: { columns: [v.Job, "Complete", "Budget", "Spent", "Over / under", v.rfiShort], numeric: [false, true, true, true, true, true], rows: rows.map((x) => [String(x.name), `${Math.round(n(x.pct_complete) * 100)}%`, money(n(x.budget)), money(n(x.actual)), fmt(n(x.over), "over"), String(x.open_rfis)]) },
+      defs: ["Percent complete", "Spent to date", "Cost vs. budget for work done", v.rfiShort],
+      basis: `${v.Job} costs to date`,
     };
   }
 
   return {
     ok: false,
     title: "I can't answer that one in the demo",
-    text: "The demo answers common questions about jobs, budgets, change orders, RFIs, crew hours, cash, revenue, profit, and who owes whom. Try one of the suggested questions.",
+    text: `The demo answers common questions about ${v.jobs}, budgets, ${v.changeOrders}, ${v.rfis}, ${v.hours}, cash, revenue, profit, and who owes whom. Try one of the suggested questions.`,
     defs: [],
     basis: "",
   };

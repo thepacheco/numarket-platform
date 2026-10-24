@@ -50,6 +50,7 @@ async function main() {
       logoText: get("logo", "SANDBOX_LOGO"),
       color: get("color", "SANDBOX_COLOR"),
       host,
+      industry: get("industry", "SANDBOX_INDUSTRY") === "services" ? "services" : "construction",
     });
     const url = addressFor(s.slug, s.hosts)!;
     summary(

@@ -1,7 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { withPlatform, withProvisioner } from "@numarket/db";
-import { DEMO_OTHER_MEMBERS, DEMO_PERSONAS } from "@numarket/db/demo/config";
-import { provisionSampleTenant } from "@numarket/db/provision";
+import { provisionSampleTenant, SAMPLE_SPEC } from "@numarket/db/provision";
 import { RESERVED_SUBDOMAINS, normalizeHost } from "./hosts";
 
 /* Prospect sandboxes. A sandbox is a private copy of the demo workspace for
@@ -42,7 +41,7 @@ export function sandboxSlugProblem(slug: string): string | null {
   return null;
 }
 
-export type SandboxInput = { name: string; slug?: string; days?: number; logoText?: string; color?: string; host?: string };
+export type SandboxInput = { name: string; slug?: string; days?: number; logoText?: string; color?: string; host?: string; industry?: "construction" | "services" };
 export type SandboxCreated = { slug: string; name: string; code: string; expiresAt: Date; hosts: string[] };
 
 export async function createSandbox(input: SandboxInput, now = new Date()): Promise<SandboxCreated> {
@@ -70,17 +69,8 @@ export async function createSandbox(input: SandboxInput, now = new Date()): Prom
     if (active.rows[0].n >= SANDBOX_MAX_ACTIVE) throw new Error(`There are already ${SANDBOX_MAX_ACTIVE} open sandboxes. Delete one first.`);
   });
 
-  const tenantId = await provisionSampleTenant({
-    slug,
-    name,
-    tier: "operate",
-    products: ["foundation", "workspace", "insight"],
-    isDemo: true,
-    hosts,
-    logoText,
-    allowedMethods: ["demo"],
-    members: [...DEMO_PERSONAS.map((p) => ({ ...p, persona: p.persona })), ...DEMO_OTHER_MEMBERS.map((m) => ({ ...m, scope: null, persona: null }))],
-  });
+  /* the prospect's name and colors on the sample company of their industry */
+  const tenantId = await provisionSampleTenant({ ...SAMPLE_SPEC(input.industry ?? "construction", hosts), slug, name, logoText });
 
   const code = newSandboxCode();
   const expiresAt = new Date(now.getTime() + days * 86_400_000);

@@ -1,8 +1,10 @@
-/* Server-rendered building blocks. No client JavaScript: charts are inline
-   SVG and HTML, so a dashboard is readable the moment it arrives. Styling
-   lives in the portal's stylesheet (classes prefixed "b-"). */
+/* Server-rendered building blocks. Charts are inline SVG and HTML, so a
+   dashboard is readable the moment it arrives; the only client code is the
+   count-up on big numbers. Motion is CSS. Styling lives in the portal's
+   stylesheet (classes prefixed "b-"). */
 
 import type { Scope } from "@numarket/db/repo/snapshots";
+import CountUp from "./CountUp";
 import {
   barData, fmt, fmtChange, isDated, kpiData, monthLabel, seriesData, stackedData, statementData, tableRows, tableTotals, visibleRows,
   type Block, type Datasets, type Format, type RangeSel, type Rows,
@@ -74,7 +76,7 @@ export function BlockView({ block, c }: { block: Block; c: BlockContext }) {
       : fmtChange(d.change, block.format);
     return (
       <Card block={block} c={c} className="b-kpi" caption={caption}>
-        <p className="b-kpi-v tnum">{d.value === null ? "—" : fmt(d.value, block.format)}</p>
+        <p className="b-kpi-v tnum">{d.value === null ? "—" : <CountUp text={fmt(d.value, block.format)} />}</p>
         {d.status ? (
           <span className={`pill ${d.tone === "good" ? "good" : "risk"}`}>{d.status}</span>
         ) : ch ? (
@@ -280,9 +282,19 @@ export function Chart({ kind, title, data, series, format }: { kind: "trend" | "
   const isMonth = /^\d{4}-\d{2}$/.test(data[0]?.key ?? "");
   const xl = (k: string) => (isMonth ? monthLabel(k, { short: true }) : k);
   const bw = Math.min(26, (step * 0.72) / series.length);
+  const gid = `g${title.replace(/[^a-z0-9]/gi, "").slice(0, 24)}${n}`;
+  const base = y(Math.max(0, min));
   return (
     <>
       <svg viewBox={`0 0 ${W} ${H}`} className="b-trend" role="img" aria-label={`${title}. ${series.join(" and ")}.`}>
+        <defs>
+          {series.map((_, si) => (
+            <linearGradient key={si} id={`${gid}-${si}`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor={COLORS[si % 3]} stopOpacity={0.22} />
+              <stop offset="100%" stopColor={COLORS[si % 3]} stopOpacity={0} />
+            </linearGradient>
+          ))}
+        </defs>
         {ticks.map((t, i) => (
           <g key={i}>
             <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className={Math.abs(t) < span * 1e-6 ? "b-zero" : "b-grid"} />
@@ -304,23 +316,27 @@ export function Chart({ kind, title, data, series, format }: { kind: "trend" | "
                 const x0 = x(i) - (bw * series.length) / 2 + si * bw;
                 const y0 = y(Math.max(0, v)), y1 = y(Math.min(0, v));
                 return (
-                  <rect key={`${i}-${si}`} x={x0 + 1} y={y0} width={bw - 2} height={Math.max(1, y1 - y0)} rx={2} fill={COLORS[si % 3]}>
+                  <rect key={`${i}-${si}`} className="nm-col" style={{ ["--i" as string]: i }} x={x0 + 1} y={y0} width={bw - 2} height={Math.max(1, y1 - y0)} rx={Math.min(6, (bw - 2) / 2)} fill={COLORS[si % 3]}>
                     <title>{`${xl(d.key)} · ${series[si]}: ${fmt(v, format)}`}</title>
                   </rect>
                 );
               }),
             )
-          : series.map((s, si) => (
-              <g key={s}>
-                {si === 0 && <polygon points={`${x(0)},${y(Math.max(0, min))} ${data.map((d, i) => `${x(i).toFixed(1)},${y(d.values[si]).toFixed(1)}`).join(" ")} ${x(n - 1)},${y(Math.max(0, min))}`} fill={COLORS[0]} opacity={0.08} />}
-                <polyline points={data.map((d, i) => `${x(i).toFixed(1)},${y(d.values[si]).toFixed(1)}`).join(" ")} fill="none" stroke={COLORS[si % 3]} strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" />
-                {data.map((d, i) => (
-                  <circle key={i} cx={x(i)} cy={y(d.values[si])} r={n > 18 ? 2 : 3} fill={COLORS[si % 3]}>
-                    <title>{`${xl(d.key)} · ${s}: ${fmt(d.values[si], format)}`}</title>
-                  </circle>
-                ))}
-              </g>
-            ))}
+          : series.map((s, si) => {
+              const pts = data.map((d, i) => [x(i), y(d.values[si])] as [number, number]);
+              const line = smoothPath(pts);
+              return (
+                <g key={s}>
+                  {pts.length > 1 && <path className="nm-area" d={`${line} L${pts[pts.length - 1][0].toFixed(1)},${base.toFixed(1)} L${pts[0][0].toFixed(1)},${base.toFixed(1)} Z`} fill={`url(#${gid}-${si})`} />}
+                  <path className="nm-line" pathLength={1} d={line} fill="none" stroke={COLORS[si % 3]} strokeWidth={2.6} strokeLinejoin="round" strokeLinecap="round" />
+                  {data.map((d, i) => (
+                    <circle key={i} className="nm-dot" cx={x(i)} cy={y(d.values[si])} r={i === n - 1 ? 4 : n > 18 ? 0 : 2.5} fill={i === n - 1 ? "var(--surface)" : COLORS[si % 3]} stroke={COLORS[si % 3]} strokeWidth={i === n - 1 ? 2.5 : 0}>
+                      <title>{`${xl(d.key)} · ${s}: ${fmt(d.values[si], format)}`}</title>
+                    </circle>
+                  ))}
+                </g>
+              );
+            })}
       </svg>
       <ul className="b-legend">
         {series.map((s, si) => (
@@ -332,6 +348,23 @@ export function Chart({ kind, title, data, series, format }: { kind: "trend" | "
       </ul>
     </>
   );
+}
+
+/* A smooth line through the points (Catmull-Rom as cubic Béziers), gentle
+   enough not to overshoot much between months. */
+function smoothPath(pts: [number, number][]) {
+  if (!pts.length) return "";
+  const f = (p: [number, number]) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+  if (pts.length < 3) return `M${pts.map(f).join(" L")}`;
+  let d = `M${f(pts[0])}`;
+  const t = 0.16;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] ?? pts[i + 1];
+    const c1: [number, number] = [p1[0] + (p2[0] - p0[0]) * t, p1[1] + (p2[1] - p0[1]) * t];
+    const c2: [number, number] = [p2[0] - (p3[0] - p1[0]) * t, p2[1] - (p3[1] - p1[1]) * t];
+    d += ` C${f(c1)} ${f(c2)} ${f(p2)}`;
+  }
+  return d;
 }
 
 export type { Rows };

@@ -3,18 +3,25 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { DashboardLayout } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
-import { getDashboard } from "@numarket/db/repo/workspace";
+import { vocabFor } from "@numarket/db/demo/vocab";
+import { getDashboard, getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
+import AskBox from "@/components/AskBox";
 import { asOfMonth, dashState, DashboardView, stateQuery, type Params } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
+import { suggestedFor } from "@/lib/ask";
 import { fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
+import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
+import { insightsFor } from "@/lib/insights";
+import { askQuestion, pinToHome } from "../../../actions";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<Params> }) {
   const ctx = await requireTenant("dashboard.view");
+  const v = vocabFor(ctx.tenant.industry);
   const { slug } = await params;
-  const dash = await withTenant(ctx.tenant.id, (db) => getDashboard(db, slug));
+  const { dash, dashboards, saved } = await withTenant(ctx.tenant.id, async (db) => ({ dash: await getDashboard(db, slug), dashboards: await listDashboards(db), saved: await getHomeLayout(db, ctx.user.id) }), { userId: ctx.user.id });
   if (!dash) notFound();
   const layout = dash.layout as DashboardLayout;
   if (ctx.scope && layout.wholeCompany) notFound();
@@ -24,6 +31,14 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   const updated = ws.snapshot ? fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) : "";
   const canExport = ctx.can("dashboard.export") && ctx.policy.exportRoles.includes(ctx.role);
   const hasTables = state.page.rows.flat().some((b) => b.type === "table" || b.type === "statement");
+
+  /* what's already on this person's Home, so the pins show their state */
+  const cat = catalog(dashboards, ctx);
+  const home = saved ? cleanLayout(saved, ctx, cat) : defaultLayout(ctx, cat);
+  const pinned = new Set([...home.kpis, ...home.charts]);
+  const kind = layout.wholeCompany ? "financials" : "projects";
+  const insights = ws.snapshot ? insightsFor(kind, datasets, ctx.scope, state.range, v, state.job) : [];
+
   return (
     <>
       <div className="dash-head">
@@ -46,9 +61,51 @@ export default async function DashboardPage({ params, searchParams }: { params: 
         )}
       </div>
       {ws.snapshot ? (
-        <DashboardView base={`/dashboards/${slug}`} layout={layout} datasets={datasets} ctx={ctx} state={state} defs={ws.defs} updated={updated} />
+        <DashboardView
+          base={`/dashboards/${slug}`}
+          layout={layout}
+          datasets={datasets}
+          ctx={ctx}
+          state={state}
+          defs={ws.defs}
+          updated={updated}
+          pins={{ pinned, action: pinToHome }}
+          before={
+            insights.length > 0 ? (
+              <section className="insights" aria-label="What changed">
+                <div className="insights-h">
+                  <span className="pill">
+                    <Icon name="spark" /> What changed
+                  </span>
+                  <span className="small muted">Automatic, from this update · Pin any number or chart to your Home with its pin</span>
+                </div>
+                <div className="insights-row">
+                  {insights.map((x) => (
+                    <div key={x.title} className={`insight tone-${x.tone}`}>
+                      <span className="insight-ico">
+                        <Icon name={x.icon} />
+                      </span>
+                      <div>
+                        <b>{x.title}</b>
+                        <p>{x.detail}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null
+          }
+        />
       ) : (
         <p className="notice">No data has been published yet.</p>
+      )}
+      {ws.snapshot && ctx.can("ask.use") && (
+        <section className="card dash-ask">
+          <h2>
+            <Icon name="chat" /> Ask about this dashboard
+          </h2>
+          <AskBox action={askQuestion} compact suggested={suggestedFor(v, !!ctx.scope, kind).slice(0, 4)} defs={Object.fromEntries(Object.values(ws.defs).map((d) => [d.name, d.means]))} placeholder={kind === "financials" ? "e.g. Who owes us money over 60 days?" : `e.g. Which ${v.jobs} are over budget?`} />
+        </section>
       )}
     </>
   );

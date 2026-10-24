@@ -8,6 +8,7 @@ import { jobsInScope, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { MAX_UPLOAD_BYTES } from "@/lib/upload";
 import { uploadFile } from "../../actions";
+import HubNav from "@/components/HubNav";
 
 export const metadata: Metadata = { title: "Upload files" };
 
@@ -19,6 +20,7 @@ export default async function UploadPage({ searchParams }: { searchParams: Promi
   const jobs = jobsInScope(ws.snapshot?.datasets, ctx);
   return (
     <>
+      <HubNav hub="data" current="/upload" ctx={ctx} />
       <div className="page-head">
         <div>
           <p className="eyebrow">Foundation</p>
