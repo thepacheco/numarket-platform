@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { pinBase } from "@/lib/pinView";
 import Link from "next/link";
 import { withTenant } from "@numarket/db";
 import { getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
@@ -31,7 +32,7 @@ export default async function CustomizeHome() {
           <Submit className="btn btn-ghost btn-sm">Go back to the default for my role</Submit>
         </ActionForm>
       </div>
-      <HomeCustomizer kpis={cat.kpis.map(pick)} charts={cat.charts.map(pick)} panels={panels} initial={layout} action={saveHome} />
+      <HomeCustomizer kpis={cat.kpis.map(pick)} charts={cat.charts.map(pick)} panels={panels} initial={{ ...layout, kpis: layout.kpis.map(pinBase), charts: layout.charts.map(pinBase) }} action={saveHome} />
     </>
   );
 }

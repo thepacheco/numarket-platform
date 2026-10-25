@@ -4,6 +4,7 @@ import { blockCatalog, isChart, type CatalogItem } from "./catalog";
 import type { TenantContext } from "@numarket/auth";
 import type { HomeLayout } from "@numarket/db/repo/workspace";
 import { vocabFor } from "@numarket/db/demo/vocab";
+import { pinBase } from "./pinView";
 
 /* Home is each person's own page (Spec §12.3). They choose key numbers and
    charts from the workspace's dashboards, plus a few panels. Nobody builds
@@ -50,5 +51,6 @@ export function cleanLayout(l: HomeLayout, ctx: TenantContext, cat: ReturnType<t
   const k = new Set(cat.kpis.map((w) => w.id));
   const c = new Set(cat.charts.map((w) => w.id));
   const p = new Set(PANELS.filter((x) => !x.needs || ctx.can(x.needs as never)).map((x) => x.id as string));
-  return { kpis: l.kpis.filter((x) => k.has(x)).slice(0, 8), charts: l.charts.filter((x) => c.has(x)).slice(0, 6), panels: l.panels.filter((x) => p.has(x)) };
+  /* a pin may carry its view ("id?job=114"); the block itself must still exist */
+  return { kpis: l.kpis.filter((x) => k.has(pinBase(x))).slice(0, 8), charts: l.charts.filter((x) => c.has(pinBase(x))).slice(0, 6), panels: l.panels.filter((x) => p.has(x)) };
 }

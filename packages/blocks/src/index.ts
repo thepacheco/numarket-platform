@@ -69,7 +69,7 @@ export type Datasets = Record<string, Rows>;
 
 export type RangeKey = "mtd" | "lm" | "3m" | "6m" | "12m" | "ytd" | "custom";
 export type MonthRange = { from: string; to: string };
-export type RangeSel = { key: RangeKey; current: MonthRange; prior: MonthRange | null; label: string; compareLabel: string | null };
+export type RangeSel = { key: RangeKey; current: MonthRange; prior: MonthRange | null; label: string; compareLabel: string | null; compare?: "prior" | "year" };
 
 export const RANGE_OPTIONS: { key: RangeKey; label: string }[] = [
   { key: "mtd", label: "This month" },
@@ -107,7 +107,7 @@ export const validYm = (s?: string | null) => !!s && /^\d{4}-(0[1-9]|1[0-2])$/.t
 /** Turn the page's range choice into month ranges. "Last N months" means the
  *  N complete months before this one; the prior period is the same length,
  *  immediately before. Year to date compares with the same months last year. */
-export function resolveRange(asOfMonth: string, key?: string | null, from?: string | null, to?: string | null): RangeSel {
+export function resolveRange(asOfMonth: string, key?: string | null, from?: string | null, to?: string | null, compare?: string | null): RangeSel {
   const k = (RANGE_OPTIONS.some((o) => o.key === key) ? key : "12m") as RangeKey;
   const last = addMonths(asOfMonth, -1);
   let current: MonthRange;
@@ -121,10 +121,12 @@ export function resolveRange(asOfMonth: string, key?: string | null, from?: stri
     current = { from: addMonths(last, -(n - 1)), to: last };
   }
   const len = monthsBetween(current.from, current.to) + 1;
-  const prior = k === "mtd" ? null : k === "ytd" ? { from: addMonths(current.from, -12), to: addMonths(current.to, -12) } : { from: addMonths(current.from, -len), to: addMonths(current.from, -1) };
+  /* compare with the period just before, or with the same months last year (year to date always uses last year) */
+  const lastYear = compare === "year" || k === "ytd";
+  const prior = lastYear ? { from: addMonths(current.from, -12), to: addMonths(current.to, -12) } : k === "mtd" ? null : { from: addMonths(current.from, -len), to: addMonths(current.from, -1) };
   const label = `${monthLabel(current.from)}${current.to !== current.from ? ` – ${monthLabel(current.to)}` : ""}`;
-  const compareLabel = prior ? (k === "ytd" ? "vs same period last year" : `vs prior ${len === 1 ? "month" : `${len} months`}`) : null;
-  return { key: k === "custom" && !(validYm(from) && validYm(to)) ? "12m" : k, current, prior, label, compareLabel };
+  const compareLabel = prior ? (lastYear ? "vs same period last year" : `vs prior ${len === 1 ? "month" : `${len} months`}`) : null;
+  return { key: k === "custom" && !(validYm(from) && validYm(to)) ? "12m" : k, current, prior, label, compareLabel, compare: lastYear ? "year" : "prior" };
 }
 
 /* ---------- rows a user may see ---------- */

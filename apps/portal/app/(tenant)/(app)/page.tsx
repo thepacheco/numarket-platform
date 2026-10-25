@@ -1,22 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { resolveRange } from "@numarket/blocks";
+import { resolveRange, type Block } from "@numarket/blocks";
 import { BlockView, type BlockContext } from "@numarket/blocks/react";
 import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import { getHomeLayout, listActionItems, listDashboards, listEntries, listFlags, listReports, listReviews, listSources } from "@numarket/db/repo/workspace";
 import AskBox from "@/components/AskBox";
-import { asOfMonth } from "@/components/Dashboard";
+import { asOfMonth, Shown, viewModes } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
 import SolidIcon from "@/components/solids/SolidIcon";
 import { suggestedFor } from "@/lib/ask";
 import { syncAlerts } from "@/lib/alertsSync";
-import { ago, fmtTime, reportVisible, workspace } from "@/lib/data";
+import { ago, fmtTime, jobsInScope, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 import { navFor } from "@/lib/nav";
 import QbrGlance from "@/components/QbrGlance";
 import { completeQuarters, priorQuarter, quarterGlance } from "@/lib/qbr";
+import { pinViewLabel, splitPin, type PinView } from "@/lib/pinView";
 import { askQuestion } from "../actions";
 
 export const metadata: Metadata = { title: "Home" };
@@ -54,13 +55,31 @@ export default async function Home() {
   );
   const cat = catalog(data.dashboards, ctx);
   const layout = data.saved ? cleanLayout(data.saved, ctx, cat) : defaultLayout(ctx, cat);
-  const kpis = layout.kpis.map((id) => cat.kpis.find((w) => w.id === id)!).filter(Boolean);
-  const charts = layout.charts.map((id) => cat.charts.find((w) => w.id === id)!).filter(Boolean);
+  /* a pin can carry the view it was pinned from (a job, a period, a table instead of a chart) */
+  const withView = (list: string[], from: typeof cat.kpis) =>
+    list.flatMap((e) => {
+      const { id, view } = splitPin(e);
+      const w = from.find((x) => x.id === id);
+      return w ? [{ ...w, key: e, view }] : [];
+    });
+  const kpis = withView(layout.kpis, cat.kpis);
+  const charts = withView(layout.charts, cat.charts);
   const has = (p: string) => layout.panels.includes(p);
 
   const updated = ws.snapshot ? new Date(ws.snapshot.published_at) : null;
   const range = resolveRange(asOfMonth(ws.snapshot?.published_at, tz), "12m");
   const c: BlockContext = { datasets: ws.snapshot?.datasets ?? {}, scope: ctx.scope, eq: {}, range, defs: ws.defs, updated: updated ? ago(updated) : "" };
+  const jobs = jobsInScope(ws.snapshot?.datasets, ctx);
+  const jobName = (code: string) => jobs.find((j) => j.code === code)?.name;
+  /* the view a pin was saved with, checked again against what this person may see */
+  const pinned = (w: { block: Block; view: PinView | null }) => {
+    const v = w.view;
+    if (!v) return { cx: c, mode: undefined, label: "" };
+    const job = v.job && jobName(v.job) ? v.job : undefined;
+    const cx: BlockContext = { ...c, eq: { job }, range: resolveRange(asOfMonth(ws.snapshot?.published_at, tz), v.range ?? "12m", v.from, v.to, v.cmp) };
+    const mode = v.as && viewModes(w.block).includes(v.as) ? v.as : undefined;
+    return { cx, mode, label: pinViewLabel({ ...v, job }, jobName) };
+  };
   const unhealthy = data.sources.filter((s) => s.status !== "healthy");
   const review = data.reviews[0];
   /* leaders see every open action item; everyone else sees their own */
@@ -148,18 +167,28 @@ export default async function Home() {
 
       {kpis.length > 0 && ws.snapshot && (
         <div className="dash-row kpis home-kpis" style={{ ["--cols" as string]: Math.min(4, kpis.length) }}>
-          {kpis.map((w) => (
-            <BlockView key={w.id} block={{ ...w.block, span: 1 }} c={c} />
-          ))}
+          {kpis.map((w) => {
+            const p = pinned(w);
+            return (
+              <div key={w.key} className="pv-wrap">
+                <BlockView block={{ ...w.block, span: 1 }} c={p.cx} />
+                {p.label && <span className="pv-chip">{p.label}</span>}
+              </div>
+            );
+          })}
         </div>
       )}
 
       <div className="bento home-main">
-        {charts.map((w, i) => (
-          <div key={w.id} className={charts.length === 1 || (charts.length % 2 === 1 && i === charts.length - 1) ? "c-12" : "c-6"}>
-            <BlockView block={{ ...w.block, span: 1 }} c={c} />
+        {charts.map((w, i) => {
+          const p = pinned(w);
+          return (
+          <div key={w.key} className={`pv-wrap ${charts.length === 1 || (charts.length % 2 === 1 && i === charts.length - 1) ? "c-12" : "c-6"}`}>
+            {p.mode ? <Shown b={{ ...w.block, span: 1 }} mode={p.mode} c={p.cx} /> : <BlockView block={{ ...w.block, span: 1 }} c={p.cx} />}
+            {p.label && <span className="pv-chip">{p.label}</span>}
           </div>
-        ))}
+          );
+        })}
 
         {has("review") && review && (
           <section className="card c-12 analyst-card">

@@ -335,6 +335,7 @@ const dataReports = [
       groupings: [
         { key: "account", label: "By account", columns: [{ field: "section", label: "Section" }, { field: "account", label: "Account" }, moneyCol("amount", "Amount")], groupBy: { by: ["section", "account", "sort"], sum: ["amount"] }, sort: { field: "sort", dir: "asc" } },
         { key: "month", label: "By month and section", columns: [monthCol, { field: "section", label: "Section" }, moneyCol("amount", "Amount")], groupBy: { by: ["month", "section"], sum: ["amount"] }, sort: { field: "month", dir: "asc" } },
+        { key: "detail", label: "Every row", columns: [monthCol, { field: "section", label: "Section" }, { field: "account", label: "Account" }, moneyCol("amount", "Amount")], sort: { field: "month", dir: "desc" } },
       ],
     },
   },

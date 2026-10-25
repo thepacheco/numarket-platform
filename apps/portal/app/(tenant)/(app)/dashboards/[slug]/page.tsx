@@ -14,6 +14,7 @@ import { fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 import { insightsFor } from "@/lib/insights";
+import { pinBase } from "@/lib/pinView";
 import { askQuestion, pinToHome } from "../../../actions";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -36,7 +37,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   /* what's already on this person's Home, so the pins show their state */
   const cat = catalog(dashboards, ctx);
   const home = saved ? cleanLayout(saved, ctx, cat) : defaultLayout(ctx, cat);
-  const pinned = new Set([...home.kpis, ...home.charts]);
+  const pinned = new Set([...home.kpis, ...home.charts].map(pinBase));
   const kind = layout.wholeCompany ? "financials" : "projects";
   const insights = ws.snapshot ? insightsFor(kind, datasets, ctx.scope, state.range, v, state.job) : [];
 

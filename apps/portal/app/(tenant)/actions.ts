@@ -396,7 +396,11 @@ export async function saveHome(_: ActionResult | null, form: FormData): Promise<
     const { catalog, cleanLayout } = await import("@/lib/home");
     return withTenant(ctx.tenant.id, async (db) => {
       const cat = catalog(await listDashboards(db), ctx);
-      const layout = cleanLayout({ kpis: form.getAll("kpi").map(String), charts: form.getAll("chart").map(String), panels: form.getAll("panel").map(String) }, ctx, cat);
+      /* keep the view a pin was saved with ("id?job=114") when it stays on Home */
+      const { pinBase } = await import("@/lib/pinView");
+      const saved = await getHomeLayout(db, ctx.user.id);
+      const keep = (picked: string[], had: string[] = []) => picked.map((id) => had.find((x) => pinBase(x) === id) ?? id);
+      const layout = cleanLayout({ kpis: keep(form.getAll("kpi").map(String), saved?.kpis), charts: keep(form.getAll("chart").map(String), saved?.charts), panels: form.getAll("panel").map(String) }, ctx, cat);
       await saveHomeLayout(db, ctx.user.id, layout);
       revalidatePath("/");
       return { ok: true, message: "Saved. Opening your Home page…", redirect: "/" };
@@ -428,15 +432,23 @@ export async function pinToHome(_: ActionResult | null, form: FormData): Promise
       const kind = cat.kpis.some((w) => w.id === id) ? "kpis" : cat.charts.some((w) => w.id === id) ? "charts" : null;
       if (!kind) throw new ActionError("That can't be pinned.");
       const list = layout[kind];
-      if (list.includes(id)) {
-        layout[kind] = list.filter((x) => x !== id);
+      const { parsePinView, pinBase, pinViewQuery } = await import("@/lib/pinView");
+      if (list.some((x) => pinBase(x) === id)) {
+        layout[kind] = list.filter((x) => pinBase(x) !== id);
         await saveHomeLayout(db, ctx.user.id, layout);
         revalidatePath("/");
         return { ok: true, message: "Removed from Home." };
       }
       const max = kind === "kpis" ? 8 : 6;
       if (list.length >= max) throw new ActionError(`Your Home already has ${max} ${kind === "kpis" ? "key numbers" : "charts"}. Remove one under Customize first.`);
-      layout[kind] = [...list, id];
+      /* pinned as you see it: only a job this person may see */
+      const view = parsePinView(str(form, "view"));
+      if (view?.job) {
+        const snap = await latestSnapshot(db);
+        if (!jobsInScope(snap?.datasets, ctx).some((j) => j.code === view.job)) delete view.job;
+      }
+      const qs = pinViewQuery(view);
+      layout[kind] = [...list, qs ? `${id}?${qs}` : id];
       await saveHomeLayout(db, ctx.user.id, layout);
       revalidatePath("/");
       return { ok: true, message: "Pinned to Home." };
