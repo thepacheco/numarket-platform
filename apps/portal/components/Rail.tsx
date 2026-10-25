@@ -11,7 +11,20 @@ import type { NavItem, NavSection } from "@/lib/nav";
    (each opens a hub with tabs), Settings at the bottom. Products are marked
    with their shape and color from the marketing site. The desktop rail
    collapses to icons; on phones it opens full screen. */
-export default function Rail({ sections, flags, settings, mobile = false }: { sections: NavSection[]; flags: number; settings: boolean; mobile?: boolean }) {
+export default function Rail({
+  sections,
+  flags,
+  settings,
+  requests = null,
+  mobile = false,
+}: {
+  sections: NavSection[];
+  flags: number;
+  settings: boolean;
+  /* items waiting on this person on the Requests board; null hides the entry */
+  requests?: number | null;
+  mobile?: boolean;
+}) {
   const path = usePathname();
   const [saved, setCollapsed] = useState(false);
   /* the phone menu is always full width; only the desktop rail collapses */
@@ -23,11 +36,22 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
     if (d) d.open = false;
   };
   useEffect(closeMenu, [path]);
+  /* product groups each person has folded away */
+  const [folded, setFolded] = useState<string[]>([]);
   useEffect(() => {
     try {
       setCollapsed(localStorage.getItem("nm-rail") === "collapsed");
+      const f = JSON.parse(localStorage.getItem("nm-rail-groups") ?? "[]");
+      if (Array.isArray(f)) setFolded(f.filter((x) => typeof x === "string"));
     } catch {}
   }, []);
+  const fold = (product: string) => {
+    const next = folded.includes(product) ? folded.filter((x) => x !== product) : [...folded, product];
+    setFolded(next);
+    try {
+      localStorage.setItem("nm-rail-groups", JSON.stringify(next));
+    } catch {}
+  };
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
@@ -48,14 +72,52 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
         <span>Home</span>
       </Link>
 
-      {sections.map((s) => (
-        <div key={s.product} className={`rail2-sec p-${s.product} ${s.owned ? "" : "unowned"}`}>
-          <div className="rail2-h" data-tip-title={`${s.name}: ${s.tagline}`} data-tip={s.owned ? s.about : `Not in your plan. ${s.about}`}>
+      {requests !== null && (
+        <Link
+          href="/requests"
+          className="rail2-home"
+          aria-current={path.startsWith("/requests") ? "page" : undefined}
+          data-tip-title="Requests"
+          data-tip="Everything numarket is working on for you, on one board: dashboard changes, new app ideas, issues, and improvements. Add one any time and see where it stands."
+        >
+          <Icon name="list" />
+          <span>Requests</span>
+          {requests > 0 ? <span className="nav-count">{requests}</span> : null}
+        </Link>
+      )}
+
+      {sections.map((s) => {
+        /* the group holding the current page always stays open */
+        const open = collapsed || !folded.includes(s.product) || s.items.some(current);
+        const head = (
+          <>
             <SolidIcon kind={s.product} size={16} muted={!s.owned} />
             <span>{s.name}</span>
             {!s.owned && <span className="rail-lock">Not in plan</span>}
-          </div>
-          <ul>
+          </>
+        );
+        return (
+        <div key={s.product} className={`rail2-sec p-${s.product} ${s.owned ? "" : "unowned"} ${open ? "" : "folded"}`}>
+          {collapsed ? (
+            <div className="rail2-h" data-tip-title={`${s.name}: ${s.tagline}`} data-tip={s.owned ? s.about : `Not in your plan. ${s.about}`}>
+              {head}
+            </div>
+          ) : (
+            <button
+              type="button"
+              className="rail2-h"
+              aria-expanded={open}
+              onClick={() => fold(s.product)}
+              data-tip-title={`${s.name}: ${s.tagline}`}
+              data-tip={`${s.owned ? s.about : `Not in your plan. ${s.about}`} Click to ${open ? "fold" : "open"} this group.`}
+            >
+              {head}
+              <span className="rail2-chev" aria-hidden="true">
+                <Icon name="chevron" />
+              </span>
+            </button>
+          )}
+          <ul hidden={!open}>
             {s.items.map((i) => (
               <li key={i.href}>
                 <Link href={i.href} className={`rail2-link ${i.locked ? "locked" : ""}`} aria-current={current(i) ? "page" : undefined} data-tip-title={collapsed ? `${s.name} · ${i.label}` : i.label} data-tip={i.tip ?? i.label}>
@@ -67,7 +129,8 @@ export default function Rail({ sections, flags, settings, mobile = false }: { se
             ))}
           </ul>
         </div>
-      ))}
+        );
+      })}
 
       <div className="rail-foot">
         {settings && (

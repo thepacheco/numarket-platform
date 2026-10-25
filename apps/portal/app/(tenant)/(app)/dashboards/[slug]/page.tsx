@@ -56,6 +56,15 @@ export default async function DashboardPage({ params, searchParams }: { params: 
           </div>
         </div>
         <div className="dash-actions">
+          {ctx.can("requests.submit") && (
+            <Link
+              className="btn btn-secondary btn-sm"
+              href={`/requests/new?${new URLSearchParams({ kind: "change", product: "workspace", link: `/dashboards/${slug}`, from: dash.title }).toString()}`}
+              data-tip="Want a new page, chart, or number here? Describe it, sketch it from our blocks, and your analyst builds it."
+            >
+              <Icon name="plus" /> Request a change
+            </Link>
+          )}
           {canExport && hasTables && (
             <a className="btn btn-secondary btn-sm" href={`/dashboards/${slug}/export?${stateQuery(state)}`} data-tip="Download the tables on this page, with the filters you've set, as a CSV file for Excel">
               <Icon name="download" /> Export (CSV)

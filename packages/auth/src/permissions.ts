@@ -26,6 +26,9 @@ export const PERMISSIONS = [
   "actions.view",
   "actions.update_own",
   "actions.manage",
+  "requests.view",
+  "requests.submit",
+  "requests.approve",
   "users.manage",
   "roles.manage",
   "branding.manage",
@@ -40,7 +43,7 @@ export type Role = "owner" | "admin" | "editor" | "contributor" | "viewer";
 /* People see what their job needs. Viewers read the numbers, ask
    questions, and set their own alerts; data plumbing (sources, tables) is
    for admins and owners; flags go to the people who can answer them. */
-const viewer: Permission[] = ["dashboard.view", "report.view", "definitions.view", "actions.view", "ask.use", "alert.manage_own"];
+const viewer: Permission[] = ["dashboard.view", "report.view", "definitions.view", "actions.view", "ask.use", "alert.manage_own", "requests.view", "requests.submit"];
 const contributor: Permission[] = ["input.submit", "input.edit_own", "definitions.view"];
 const editor: Permission[] = [
   ...viewer,
@@ -91,5 +94,6 @@ export const PERMISSION_GROUPS: { name: string; keys: Permission[] }[] = [
   { name: "Ask Your Data", keys: ["ask.use"] },
   { name: "Your data", keys: ["definitions.view", "definitions.suggest", "flags.view", "flags.resolve", "sources.view", "sources.connect", "refresh.trigger"] },
   { name: "Insight Review", keys: ["actions.view", "actions.update_own", "actions.manage"] },
+  { name: "Requests to numarket", keys: ["requests.view", "requests.submit", "requests.approve"] },
   { name: "Administration", keys: ["users.manage", "roles.manage", "branding.manage", "security.manage", "audit.view", "usage.view"] },
 ];

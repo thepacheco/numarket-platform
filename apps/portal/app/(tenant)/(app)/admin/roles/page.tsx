@@ -10,7 +10,8 @@ const LABEL: Record<string, string> = {
   "input.edit_any": "Edit anyone's entries", "input.approve": "Approve entries", "alert.manage_own": "Manage own alerts", "alert.manage_all": "Manage all alerts",
   "ask.use": "Ask Your Data", "definitions.view": "View definitions", "definitions.suggest": "Suggest definition changes", "flags.view": "View flags and data health",
   "flags.resolve": "Settle flags", "sources.view": "View sources", "sources.connect": "Connect sources", "refresh.trigger": "Update now",
-  "actions.view": "View action items", "actions.update_own": "Update own action items", "actions.manage": "Manage action items", "users.manage": "Manage users",
+  "actions.view": "View action items", "actions.update_own": "Update own action items", "actions.manage": "Manage action items",
+  "requests.view": "See the Requests board", "requests.submit": "Add requests and comment", "requests.approve": "Sign off on anyone's finished request", "users.manage": "Manage users",
   "roles.manage": "Manage roles", "branding.manage": "Change branding", "security.manage": "Change the security policy", "audit.view": "View the audit log", "usage.view": "View usage and plan",
 };
 

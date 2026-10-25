@@ -77,6 +77,17 @@ export function todayIn(tz: string) {
   return new Date().toLocaleDateString("en-CA", { timeZone: tz });
 }
 
+/** A path inside this workspace (like "/dashboards/projects"), or null. Never another site. */
+export function localLink(raw: string | undefined | null) {
+  const v = (raw ?? "").trim();
+  return /^\/[a-z0-9/_?=&.-]*$/i.test(v) && !v.startsWith("//") ? v.slice(0, 300) : null;
+}
+
+/** The first day of this month in the workspace's time zone (used for monthly allowances). */
+export function monthStartIn(tz: string) {
+  return new Date(`${todayIn(tz).slice(0, 7)}-01T00:00:00Z`);
+}
+
 /** A report fixed to one job is shown only to people whose scope includes it;
  *  a company-wide report only to people who see the whole company. */
 export function reportVisible(layout: { job?: string | null; wholeCompany?: boolean }, ctx: TenantContext) {

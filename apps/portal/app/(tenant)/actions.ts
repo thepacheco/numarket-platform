@@ -8,11 +8,13 @@ import { getPolicy, updateBranding, updateMember, updatePolicy } from "@numarket
 import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllowed } from "@numarket/db/repo/snapshots";
 import { addSource, getHomeLayout, createReport, listActionItems, setActionStatus, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
 import { REPORT_TEMPLATES } from "@numarket/db/demo/config";
+import { addRequestUpdate, getRequest, insertRequest, REQUEST_KINDS, REQUEST_PRODUCTS, type RequestKind, type RequestProduct, type SketchBlock } from "@numarket/db/repo/requests";
+import { TIER_LIMITS } from "@numarket/metering";
 import { companyDatasets, toLayout } from "@/lib/reportDesign";
 import { updateNowLimit } from "@numarket/metering";
 import { parseHex } from "@numarket/ui";
 import { ActionError, assertNotDemo, tenantOrThrow } from "@/lib/guard";
-import { fmtDateTime, jobsInScope, todayIn, workspace } from "@/lib/data";
+import { fmtDateTime, jobsInScope, localLink, todayIn, workspace } from "@/lib/data";
 import { checkUpload, type UploadResult } from "@/lib/upload";
 import type { AskState } from "@/lib/ask";
 
@@ -763,6 +765,69 @@ export async function addViewAlert(_: ActionResult | null, form: FormData): Prom
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "alert.create", target: `explore/${slug}`, detail: { cond, email }, ip: meta.ip });
       revalidatePath("/", "layout");
       return { ok: true, message: cond === "rows" ? `Set. You'll hear about anything new here (${(params.seen as string[]).length} rows already here don't count).` : "Set. You'll hear when the total crosses your line." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+
+/* ---------- Requests board (everything numarket is working on for you) ---------- */
+
+const SKETCH_BLOCKS: SketchBlock[] = ["kpis", "line", "bars", "table", "matrix", "heatmap"];
+
+/** Add a request: a dashboard change, an app idea, an issue, or an improvement. */
+export async function createRequestAction(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("requests.submit");
+    const kind = str(form, "kind") as RequestKind;
+    const product = str(form, "product") as RequestProduct;
+    const title = str(form, "title").slice(0, 140);
+    const detail = str(form, "detail").slice(0, 4000);
+    const priority = str(form, "priority") === "high" ? "high" : str(form, "priority") === "low" ? "low" : "normal";
+    const link = localLink(str(form, "link"));
+    const sketch = form.getAll("sketch").map(String).filter((b): b is SketchBlock => SKETCH_BLOCKS.includes(b as SketchBlock));
+    const errors: Record<string, string> = {};
+    if (!REQUEST_KINDS.includes(kind)) errors.kind = "Pick what kind of request this is.";
+    if (!REQUEST_PRODUCTS.includes(product)) errors.product = "Pick what it's about.";
+    if (title.length < 3) errors.title = "Give it a short title.";
+    if (Object.keys(errors).length) return { ok: false, message: "Please fix the highlighted fields.", errors };
+    return withTenant(ctx.tenant.id, async (db) => {
+      const id = await insertRequest(db, { kind, product, title, detail, priority, link, sketch: kind === "change" && sketch.length ? sketch : null, userId: ctx.user.id });
+      await addRequestUpdate(db, id, { author: ctx.user.name, userId: ctx.user.id, body: detail || title, status: "submitted" });
+      /* an automatic receipt, so people know it landed and when to expect a reply */
+      await addRequestUpdate(db, id, { author: "numarket", userId: null, body: `Received. Your analyst replies within ${TIER_LIMITS[ctx.tenant.tier].replyTime}.` });
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "request.create", target: title.slice(0, 120), detail: { kind, product }, ip: meta.ip });
+      revalidatePath("/requests", "layout");
+      return { ok: true, message: "Added to the board. Your analyst will reply here.", redirect: `/requests/${id}` };
+    }, { userId: ctx.user.id });
+  });
+}
+
+/** Comment on a request, or (when it's ready for review) sign off or send it back. */
+export async function requestUpdateAction(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("requests.submit");
+    const id = str(form, "id");
+    const intent = str(form, "intent");
+    const body = str(form, "body").slice(0, 4000);
+    return withTenant(ctx.tenant.id, async (db) => {
+      const r = await getRequest(db, id);
+      if (!r) throw new ActionError("That request doesn't exist.");
+      if (intent === "approve" || intent === "send_back") {
+        if (r.status !== "review") throw new ActionError("Only requests that are ready for your review can be signed off.");
+        const mine = r.requested_by === ctx.user.id;
+        if (!mine && !ctx.can("requests.approve")) throw new ActionError(`Only ${r.by_name ?? "the person who asked"} or an admin can sign this off.`);
+        if (intent === "send_back" && body.length < 3) return { ok: false, message: "Say what should change.", errors: { body: "Say what should change." } };
+        await addRequestUpdate(db, id, { author: ctx.user.name, userId: ctx.user.id, body: intent === "approve" ? body || "Approved. Thanks." : body, status: intent === "approve" ? "done" : "in_progress" });
+        await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: `request.${intent}`, target: r.title.slice(0, 120), detail: {}, ip: meta.ip });
+        revalidatePath("/requests", "layout");
+        return { ok: true, message: intent === "approve" ? "Signed off. It's done." : "Sent back with your note." };
+      }
+      if (body.length < 1) return { ok: false, message: "Write a comment first.", errors: { body: "Write a comment first." } };
+      if (r.status === "done") throw new ActionError("This one is done. Add a new request instead.");
+      await addRequestUpdate(db, id, { author: ctx.user.name, userId: ctx.user.id, body });
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "request.comment", target: r.title.slice(0, 120), detail: {}, ip: meta.ip });
+      revalidatePath("/requests", "layout");
+      return { ok: true, message: "Added. Your analyst will see it." };
     }, { userId: ctx.user.id });
   });
 }
