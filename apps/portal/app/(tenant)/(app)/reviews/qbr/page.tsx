@@ -4,14 +4,17 @@ import { notFound } from "next/navigation";
 import { BlockView, type BlockContext } from "@numarket/blocks/react";
 import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
-import { listActionItems, listReviews } from "@numarket/db/repo/workspace";
+import { getHomeLayout, listActionItems, listReviews } from "@numarket/db/repo/workspace";
 import { asOfMonth } from "@/components/Dashboard";
 import HubNav from "@/components/HubNav";
 import Icon from "@/components/Icon";
+import PinButton from "@/components/PinButton";
 import PrintButton from "@/components/PrintButton";
+import QbrGlance from "@/components/QbrGlance";
 import { fmtDateTime, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
-import { completeQuarters, inQuarter, qbrBlocks, quarterRange, yearTo } from "@/lib/qbr";
+import { compareOf, completeQuarters, inQuarter, priorQuarter, qbrBlocks, quarterGlance, quarterRange, yearTo } from "@/lib/qbr";
+import { pinToHome } from "../../../actions";
 
 export const metadata: Metadata = { title: "QBR pack" };
 
@@ -19,20 +22,25 @@ export const metadata: Metadata = { title: "QBR pack" };
    dashboards and the analyst's reviews: the quarter against the one before,
    where every job stands, what was done about last quarter's action items,
    the risks, and what's next. Whole-company, so leaders only. */
-export default async function QbrPack({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+export default async function QbrPack({ searchParams }: { searchParams: Promise<{ q?: string; vs?: string }> }) {
   const ctx = await requireTenant("actions.view");
   if (!ctx.tenant.products.includes("insight") || !ctx.can("dashboard.view") || ctx.scope) notFound();
   const v = vocabFor(ctx.tenant.industry);
   const ws = await workspace(ctx);
-  const { reviews, actions } = await withTenant(ctx.tenant.id, async (db) => ({ reviews: await listReviews(db), actions: await listActionItems(db) }));
+  const { reviews, actions, home } = await withTenant(ctx.tenant.id, async (db) => ({ reviews: await listReviews(db), actions: await listActionItems(db), home: await getHomeLayout(db, ctx.user.id) }), { userId: ctx.user.id });
   const quarters = completeQuarters(asOfMonth(ws.snapshot?.published_at, ctx.tenant.timezone));
-  const { q: qParam } = await searchParams;
+  const { q: qParam, vs } = await searchParams;
   const q = quarters.find((x) => x.key === qParam) ?? quarters[0];
+  const compare = compareOf(vs);
+  const pq = priorQuarter(q, compare);
+  const qs = (o: { q?: string; vs?: string }) => `/reviews/qbr?q=${o.q ?? q.key}${(o.vs ?? compare) === "year" ? "&vs=year" : ""}`;
   const datasets = ws.snapshot?.datasets ?? {};
   const updated = ws.snapshot ? fmtDateTime(ws.snapshot.published_at, ctx.tenant.timezone) : "";
   const b = qbrBlocks(v);
   const base = { datasets, scope: null, eq: {}, defs: ws.defs, updated };
-  const cq: BlockContext = { ...base, range: quarterRange(q) };
+  const cq: BlockContext = { ...base, range: quarterRange(q, compare) };
+  const glance = quarterGlance(datasets, v, q, compare);
+  const logo = ws.branding?.logo_text ?? ctx.tenant.name.slice(0, 2).toUpperCase();
   const cy: BlockContext = { ...base, range: yearTo(q) };
 
   const qReviews = reviews.filter((r) => inQuarter(r.period, q));
@@ -52,28 +60,40 @@ export default async function QbrPack({ searchParams }: { searchParams: Promise<
           <p>Your quarterly business review, built from the same numbers as your dashboards. Your analyst walks you through it in the QBR meeting; print it or save it as a PDF for the board.</p>
         </div>
       </div>
-      <div className="row no-print" style={{ justifyContent: "space-between", marginBottom: 16 }}>
+      <div className="qbr-tools no-print">
         <nav className="range-seg" aria-label="Quarter">
           {quarters.map((x) => (
-            <Link key={x.key} href={`/reviews/qbr?q=${x.key}`} aria-current={x.key === q.key}>
+            <Link key={x.key} href={qs({ q: x.key })} aria-current={x.key === q.key}>
               {x.label}
             </Link>
           ))}
         </nav>
+        <nav className="range-seg" aria-label="Compare with">
+          <Link href={qs({ vs: "quarter" })} aria-current={compare === "quarter"}>
+            vs the quarter before
+          </Link>
+          <Link href={qs({ vs: "year" })} aria-current={compare === "year"}>
+            vs the same quarter last year
+          </Link>
+        </nav>
+        <span className="grow" />
         <PrintButton />
       </div>
 
       {!ws.snapshot ? (
         <p className="notice">No data has been published yet.</p>
       ) : (
-        <article className="qbr">
-          <header className="qbr-cover card">
-            <span className="eyebrow">Quarterly business review</span>
+        <article className="qbr qbr-doc">
+          <header className="qbr-cover">
+            <div className="qbr-cover-top">
+              <span className="logo-chip qbr-logo">{logo}</span>
+              <span className="eyebrow">Quarterly business review</span>
+            </div>
             <h2>
-              {ctx.tenant.name} · {q.label}
+              {ws.branding?.display_name ?? ctx.tenant.name} · {q.label}
             </h2>
             <p className="muted">
-              Prepared by {analyst} · Numbers as of {updated}
+              Prepared by {analyst} · Numbers as of {updated} · Compared with {pq.label}
             </p>
             <ol className="qbr-agenda">
               <li>The quarter in numbers</li>
@@ -92,6 +112,16 @@ export default async function QbrPack({ searchParams }: { searchParams: Promise<
               {b.kpis.map((k) => (
                 <BlockView key={k.title} block={k} c={cq} />
               ))}
+            </div>
+            <div className="qbr-glance-wrap">
+              <div className="qbr-glance-h">
+                <h3>What changed</h3>
+                <span className="qbr-pin no-print">
+                  <span className="small muted">{home?.panels.includes("qbr") ? "On your Home" : "Add to my Home"}</span>
+                  <PinButton id="panel:qbr" pinned={!!home?.panels.includes("qbr")} action={pinToHome} />
+                </span>
+              </div>
+              <QbrGlance rows={glance} current={q.label} prior={pq.label} />
             </div>
             <div className="qbr-two">
               <BlockView block={b.trend} c={cy} />
@@ -156,13 +186,14 @@ export default async function QbrPack({ searchParams }: { searchParams: Promise<
               <span className="qbr-n">4</span> Risks
             </h2>
             {risks.length ? (
-              <ul className="list">
-                {risks.map((r) => (
-                  <li key={r.title}>
-                    <b>{r.title}.</b> <span className="muted">{r.detail}</span>
-                  </li>
+              <div className="qbr-risks">
+                {risks.map((r, i) => (
+                  <div key={r.title} className={`qbr-risk ${i === 0 ? "high" : ""}`}>
+                    <b>{r.title}</b>
+                    <p>{r.detail}</p>
+                  </div>
                 ))}
-              </ul>
+              </div>
             ) : (
               <p className="muted">No risks raised in this quarter&apos;s reviews.</p>
             )}
@@ -187,7 +218,7 @@ export default async function QbrPack({ searchParams }: { searchParams: Promise<
             </ol>
           </section>
           <p className="small muted qbr-foot">
-            Every number in this pack links to a written definition in your workspace. Figures for {q.label} are compared with the quarter before; the trend charts show the 12 months to {q.label}.
+            Every number in this pack links to a written definition in your workspace. Figures for {q.label} are compared with {pq.label}; the trend charts show the 12 months to {q.label}.
           </p>
         </article>
       )}

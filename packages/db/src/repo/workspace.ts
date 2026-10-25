@@ -5,13 +5,19 @@ import type { Db } from "../client";
    tenant of the request. Callers check permissions before calling. */
 
 /* ---------- dashboards ---------- */
-export type DashboardRow = { slug: string; title: string; description: string; layout: unknown };
+/* roles: who sees it (null = every role that can see dashboards; owners always do) */
+export type DashboardRow = { slug: string; title: string; description: string; layout: unknown; roles: string[] | null };
 export async function listDashboards(db: Db) {
-  return (await db.query<DashboardRow>("select slug, title, description, layout from dashboards order by sort, title")).rows;
+  return (await db.query<DashboardRow>("select slug, title, description, layout, roles from dashboards order by sort, title")).rows;
 }
 export async function getDashboard(db: Db, slug: string) {
-  return (await db.query<DashboardRow>("select slug, title, description, layout from dashboards where slug = $1", [slug])).rows[0] ?? null;
+  return (await db.query<DashboardRow>("select slug, title, description, layout, roles from dashboards where slug = $1", [slug])).rows[0] ?? null;
 }
+export async function setDashboardRoles(db: Db, slug: string, roles: string[] | null) {
+  await db.query("update dashboards set roles = $2 where slug = $1", [slug, roles]);
+}
+/** Whether a role sees a dashboard. */
+export const dashboardForRole = (d: { roles?: string[] | null }, role: string) => role === "owner" || !d.roles || d.roles.includes(role);
 
 /* ---------- definitions ---------- */
 export type DefinitionRow = { key: string; name: string; means: string; formula: string; sources: string; owner: string; category: string; updated_at: Date };
@@ -207,7 +213,8 @@ export type ReviewContent = {
   summary: string;
   changed: { metric: string; value: string; change: string; note: string }[];
   risks: { title: string; detail: string }[];
-  recommendations: { title: string; detail: string; owner: string; due: string }[];
+  /* doneWhen: what finished looks like; source: the number the item came from */
+  recommendations: { title: string; detail: string; owner: string; due: string; doneWhen?: string; source?: { label: string; link: string } }[];
   usage: { rows: string; allowance: string; note: string };
   next: string;
 };
@@ -222,7 +229,20 @@ export async function getReview(db: Db, id: string) {
 
 /* ---------- Insight Review action items ---------- */
 export type ActionStatus = "open" | "in_progress" | "done";
-export type ActionItem = { reviewId: string; reviewTitle: string; period: string; idx: number; title: string; detail: string; owner: string; due: string; status: ActionStatus; updatedAt: Date | null };
+export type ActionItem = {
+  reviewId: string;
+  reviewTitle: string;
+  period: string;
+  idx: number;
+  title: string;
+  detail: string;
+  owner: string;
+  due: string;
+  doneWhen: string | null;
+  source: { label: string; link: string } | null;
+  status: ActionStatus;
+  updatedAt: Date | null;
+};
 
 /** Every recommendation from the reviews, with where it stands. */
 export async function listActionItems(db: Db): Promise<ActionItem[]> {
@@ -233,7 +253,7 @@ export async function listActionItems(db: Db): Promise<ActionItem[]> {
   return reviews.flatMap((r) =>
     (r.content.recommendations ?? []).map((a, idx) => {
       const s = map.get(key(r.id, idx));
-      return { reviewId: r.id, reviewTitle: r.title, period: r.period, idx, title: a.title, detail: a.detail, owner: a.owner, due: a.due, status: s?.status ?? "open", updatedAt: s?.updated_at ?? null };
+      return { reviewId: r.id, reviewTitle: r.title, period: r.period, idx, title: a.title, detail: a.detail, owner: a.owner, due: a.due, doneWhen: a.doneWhen ?? null, source: a.source ?? null, status: s?.status ?? "open", updatedAt: s?.updated_at ?? null };
     }),
   );
 }
@@ -247,7 +267,9 @@ export async function setActionStatus(db: Db, reviewId: string, idx: number, sta
 }
 
 /* ---------- Home layout (per person) ---------- */
-export type HomeLayout = { kpis: string[]; charts: string[]; panels: string[] };
+/* seen: the panels this person has been offered, so a new standard panel
+   appears once and stays off if they remove it */
+export type HomeLayout = { kpis: string[]; charts: string[]; panels: string[]; seen?: string[] };
 export async function getHomeLayout(db: Db, userId: string) {
   return (await db.query<{ layout: HomeLayout }>("select layout from home_layouts where user_id = $1", [userId])).rows[0]?.layout ?? null;
 }
@@ -375,6 +397,15 @@ export async function recordNotifications(db: Db, userId: string, ruleId: string
     if (r.rows[0]) fresh.push(r.rows[0]);
   }
   return fresh;
+}
+/** A one-off notice to one person (not from an alert rule), shown on their bell. Once per key. */
+export async function notifyUser(db: Db, userId: string, n: { key: string; title: string; body: string; link: string }) {
+  const r = await db.query<{ id: string }>(
+    `insert into notifications (tenant_id, user_id, rule_id, dedupe_key, title, body, link) values (current_tenant(), $1, null, $2, $3, $4, $5)
+     on conflict (tenant_id, user_id, dedupe_key) do nothing returning id`,
+    [userId, n.key, n.title.slice(0, 200), n.body.slice(0, 600), n.link],
+  );
+  return r.rows[0]?.id ?? null;
 }
 export async function setEmailStatus(db: Db, ids: string[], status: string) {
   if (ids.length) await db.query("update notifications set email_status = $2 where id = any($1)", [ids, status]);

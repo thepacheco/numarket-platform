@@ -7,12 +7,21 @@ import type { Scope } from "@numarket/db/repo/snapshots";
 import CountUp from "./CountUp";
 import {
   barData, fmt, fmtChange, isDated, kpiData, monthLabel, seriesData, stackedData, statementData, tableRows, tableTotals, visibleRows,
-  type Block, type Datasets, type Format, type RangeSel, type Rows,
+  type Block, type Datasets, type Format, type RangeSel, type Row, type Rows,
 } from "../index";
 
 export type DefinitionInfo = { name: string; means: string; sources: string; formula: string };
 export type Defs = Record<string, DefinitionInfo>;
-export type BlockContext = { datasets: Datasets; scope: Scope; eq: Record<string, string | undefined>; range: RangeSel | null; defs: Defs; updated?: string };
+export type BlockContext = {
+  datasets: Datasets;
+  scope: Scope;
+  eq: Record<string, string | undefined>;
+  range: RangeSel | null;
+  defs: Defs;
+  updated?: string;
+  /* where a table row leads when clicked (a job's own view, or the rows behind it) */
+  rowHref?: (dataset: string, row: Row) => string | null;
+};
 
 export function DefTip({ def, updated, children }: { def?: DefinitionInfo; updated?: string; children: React.ReactNode }) {
   if (!def) return <>{children}</>;
@@ -235,15 +244,21 @@ export function BlockView({ block, c }: { block: Block; c: BlockContext }) {
               </tr>
             </thead>
             <tbody>
-              {data.map((r, i) => (
-                <tr key={i}>
-                  {block.columns.map((col) => (
-                    <td key={col.field} className={isNum(col.format) ? "num tnum" : ""}>
-                      {col.format === "status" ? <span className={`pill ${String(r[col.field])}`}>{fmt(r[col.field], "status")}</span> : fmt(r[col.field], col.format)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {data.map((r, i) => {
+                const href = c.rowHref?.(block.dataset, r) ?? null;
+                return (
+                  <tr key={i} className={href ? "b-drill" : undefined}>
+                    {block.columns.map((col, j) => {
+                      const v = col.format === "status" ? <span className={`pill ${String(r[col.field])}`}>{fmt(r[col.field], "status")}</span> : fmt(r[col.field], col.format);
+                      return (
+                        <td key={col.field} className={isNum(col.format) ? "num tnum" : ""}>
+                          {href && j === 0 ? <a href={href}>{v}</a> : v}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
             {totals && (
               <tfoot>
@@ -368,3 +383,91 @@ function smoothPath(pts: [number, number][]) {
 }
 
 export type { Rows };
+
+/* ---------- the same data, seen another way ---------- */
+
+export type ViewAs = "table" | "heat";
+
+/* shading runs from the smallest value to the largest, so differences show */
+function shade(v: number, min: number, max: number) {
+  return max > min ? 0.08 + 0.82 * ((v - min) / (max - min)) : 0.3;
+}
+
+/** A chart's numbers as a plain table, or as a heat map (darker is bigger). */
+export function BlockAs({ block, c, as }: { block: Block; c: BlockContext; as: ViewAs }) {
+  const dated = isDated(c.datasets, block.dataset);
+  const rows = visibleRows(c.datasets, block.dataset, c.scope, { eq: c.eq, range: dated ? c.range?.current : null });
+  const caption = dated && c.range ? c.range.label : c.range ? "As of today" : null;
+  let head: string[] = [];
+  let body: { label: string; values: number[] }[] = [];
+  let format: Format = "num";
+  let perRow = false;
+  if (block.type === "trend" || block.type === "columns") {
+    const data = seriesData(block, rows, dated ? c.range?.current : null);
+    const lab = (k: string) => (block.x === "month" ? monthLabel(k, { short: true }) : k);
+    format = block.format;
+    if (as === "heat") {
+      /* one row per series across the months; each row shaded on its own scale */
+      head = data.map((d) => lab(d.key));
+      body = block.series.map((s, i) => ({ label: s.label, values: data.map((d) => d.values[i]) }));
+      perRow = true;
+    } else {
+      head = block.series.map((s) => s.label);
+      body = data.map((d) => ({ label: lab(d.key), values: d.values }));
+    }
+  } else if (block.type === "bar") {
+    format = block.format;
+    head = [block.title];
+    body = barData(block, rows).map((d) => ({ label: d.label, values: [d.value] }));
+  } else if (block.type === "stacked") {
+    format = block.format;
+    head = block.segments.map((x) => x.label);
+    body = stackedData(block, rows).map((d) => ({ label: d.label, values: d.values }));
+  } else {
+    return <BlockView block={block} c={c} />;
+  }
+  const all = body.flatMap((r) => r.values);
+  const [lo, hi] = [Math.min(...all), Math.max(...all)];
+  return (
+    <Card block={block} c={c} caption={caption} className={as === "heat" ? "b-heat-card" : ""}>
+      {body.length ? (
+        <div className="b-table-wrap">
+          <table className={`b-table ${as === "heat" ? "b-heat" : ""}`}>
+            <thead>
+              <tr>
+                <th scope="col">{as === "heat" && perRow ? "" : block.type === "trend" || block.type === "columns" ? (block.x === "month" ? "Month" : "") : ""}</th>
+                {head.map((h) => (
+                  <th key={h} scope="col" className="num">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((r) => {
+                const [min, max] = perRow ? [Math.min(...r.values), Math.max(...r.values)] : [lo, hi];
+                return (
+                  <tr key={r.label}>
+                    <th scope="row">{r.label}</th>
+                    {r.values.map((v, i) => (
+                      <td
+                        key={i}
+                        className={`num tnum ${as === "heat" && shade(v, min, max) > 0.6 ? "hot" : ""}`}
+                        style={as === "heat" ? { ["--h" as string]: shade(v, min, max) } : undefined}
+                        title={as === "heat" ? `${r.label} · ${head[i]}: ${fmt(v, format)}` : undefined}
+                      >
+                        {fmt(v, format)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Empty />
+      )}
+    </Card>
+  );
+}

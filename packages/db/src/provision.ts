@@ -1,5 +1,6 @@
 import { withProvisioner, type Db } from "./client";
 import { sampleAlerts, sampleApps } from "./demo/apps";
+import { SAMPLE_ANALYST, sampleRequests } from "./demo/requests";
 import { packFor, type Pack } from "./demo/packs";
 import { latestSnapshot } from "./repo/snapshots";
 import { publishSimulated } from "./repo/snapshots";
@@ -92,7 +93,7 @@ export async function provisionSampleTenant(spec: SampleTenantSpec): Promise<str
       await db.query(
         `insert into branding (tenant_id, display_name, logo_text, signin_message, report_footer) values ($1, $2, $3, $4, $5)
          on conflict (tenant_id) do nothing`,
-        [tenantId, spec.name, spec.logoText, spec.isDemo ? "This is a sample workspace with fictional data. Pick a person to see what they see." : null, `${spec.name} · Confidential`],
+        [tenantId, spec.name, spec.logoText, spec.isDemo ? "Pick a person to see what they see." : null, `${spec.name} · Confidential`],
       );
       await seedContent(db, tenantId, packFor(spec.industry));
     },
@@ -193,6 +194,11 @@ async function seedReviews(db: Db, tenantId: string, pack: Pack) {
     const published = new Date(Math.min(Date.now() - 3600_000, new Date(`${r.period}-01T14:00:00Z`).getTime() + 33 * 86_400_000));
     await db.query("insert into reviews (tenant_id, period, title, analyst, published_at, content) values ($1, $2, $3, $4, $5, $6)", [tenantId, r.period, r.title, r.analyst, published, JSON.stringify(r.content)]);
   }
+  /* items from earlier reviews were finished, so the list shows follow-through */
+  const older = await db.query<{ id: string; n: number }>("select id, jsonb_array_length(content->'recommendations')::int as n from reviews order by period desc offset 1");
+  for (const r of older.rows)
+    for (let idx = 0; idx < r.n; idx++)
+      await db.query("insert into action_status (tenant_id, review_id, idx, status, updated_at) values ($1, $2, $3, 'done', now() - interval '20 days') on conflict do nothing", [tenantId, r.id, idx]);
 }
 
 /* Example Engineering apps open with a few records: approvals waiting and
@@ -206,12 +212,46 @@ async function seedApps(db: Db, pack: Pack) {
     const at = new Date(Date.now() - r.daysAgo * 86_400_000);
     await db.query("insert into app_records (tenant_id, app, status, data, created_by, created_at, updated_by, updated_at) values (current_tenant(), $1, $2, $3, $4, $5, $4, $5)", [r.app, r.status, JSON.stringify(r.data), u.rows[0]?.id ?? null, at]);
   }
+  await seedRequests(db, pack);
   /* sample alerts; email stays off, since the sample people aren't real */
   await db.query("delete from notifications");
   await db.query("delete from alert_rules");
   for (const a of sampleAlerts(pack.industry)) {
     const u = await db.query<{ id: string }>("select id from users where email = $1", [a.by]);
     if (u.rows[0]) await db.query("insert into alert_rules (tenant_id, user_id, kind, params, email) values (current_tenant(), $1, $2, $3, false)", [u.rows[0].id, a.kind, JSON.stringify(a.params)]);
+  }
+}
+
+/* The Requests board opens with work in every column. */
+async function seedRequests(db: Db, pack: Pack) {
+  await db.query("delete from request_updates");
+  await db.query("delete from requests");
+  const ids = new Map<string, string | null>();
+  const userId = async (email: string | null) => {
+    if (!email) return null;
+    if (!ids.has(email)) ids.set(email, (await db.query<{ id: string }>("select id from users where email = $1", [email])).rows[0]?.id ?? null);
+    return ids.get(email) ?? null;
+  };
+  const names = new Map(pack.personas.map((p) => [p.email, p.name] as const));
+  for (const r of sampleRequests(pack.industry)) {
+    const at = (d: number) => new Date(Date.now() - d * 86_400_000 - 3_600_000);
+    const first = r.updates[0]?.daysAgo ?? 0;
+    const last = r.updates[r.updates.length - 1]?.daysAgo ?? 0;
+    const res = await db.query<{ id: string }>(
+      `insert into requests (tenant_id, kind, product, title, detail, status, priority, link, sketch, estimate_hours, quote_amount, assignee, requested_by, created_at, updated_at, done_at)
+       values (current_tenant(), $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) returning id`,
+      [r.kind, r.product, r.title, r.detail, r.status, r.priority ?? "normal", r.link ?? null, r.sketch ? JSON.stringify(r.sketch) : null, r.hours ?? null, r.quote ?? null, r.assignee ?? null, await userId(r.by), at(first), at(last), r.status === "done" ? at(last) : null],
+    );
+    for (const u of r.updates) {
+      await db.query("insert into request_updates (tenant_id, request_id, user_id, author, body, status, created_at) values (current_tenant(), $1, $2, $3, $4, $5, $6)", [
+        res.rows[0].id,
+        await userId(u.by),
+        u.by ? (names.get(u.by) ?? "Your team") : `${r.assignee ?? SAMPLE_ANALYST} · numarket`,
+        u.body,
+        u.status ?? null,
+        at(u.daysAgo),
+      ]);
+    }
   }
 }
 
@@ -223,10 +263,10 @@ export async function resetDemoTenant(tenantId: string) {
       const t = await db.query<{ slug: string; is_demo: boolean; industry: string }>("select slug, is_demo, industry from tenants where id = $1", [tenantId]);
       if (!t.rows[0]?.is_demo) throw new Error("resetDemoTenant: not a demo tenant");
       const pack = packFor(t.rows[0].industry);
-      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "saved_views", "app_records", "action_status", "notifications", "alert_rules", "snapshots", "refresh_runs", "audit_log"]) {
+      for (const table of ["input_entries", "report_versions", "definition_suggestions", "home_layouts", "saved_views", "app_records", "action_status", "notifications", "alert_rules", "request_updates", "requests", "snapshots", "refresh_runs", "audit_log"]) {
         await db.query(`delete from ${table}`);
       }
-      await db.query("update branding set primary_color = '#22577A', accent_color = '#38A3A5', display_name = (select name from tenants where id = $1)", [tenantId]);
+      await db.query("update branding set primary_color = '#22577A', accent_color = '#38A3A5', display_name = (select name from tenants where id = $1), signin_message = 'Pick a person to see what they see.'", [tenantId]);
       await db.query("update security_policies set allowed_methods = '{demo}', require_mfa = true, ip_allowlist = '{}', allowed_email_domains = '{}', session_hours = 12, idle_minutes = 60, require_approval = false");
       await seedContent(db, tenantId, pack);
       await publishSimulated(db, { id: tenantId, slug: t.rows[0].slug, isDemo: true, industry: t.rows[0].industry }, "reset", null);

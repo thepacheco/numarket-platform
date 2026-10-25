@@ -1,20 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { resolveRange } from "@numarket/blocks";
+import { fmt, fmtChange, isDated, kpiData, monthLabel, resolveRange, visibleRows, type Block, type KpiBlock } from "@numarket/blocks";
 import { BlockView, type BlockContext } from "@numarket/blocks/react";
 import { withTenant } from "@numarket/db";
 import { vocabFor } from "@numarket/db/demo/vocab";
+import { recentActivity } from "@numarket/db/repo/activity";
 import { getHomeLayout, listActionItems, listDashboards, listEntries, listFlags, listReports, listReviews, listSources } from "@numarket/db/repo/workspace";
 import AskBox from "@/components/AskBox";
-import { asOfMonth } from "@/components/Dashboard";
+import { asOfMonth, Shown, viewModes } from "@/components/Dashboard";
 import Icon from "@/components/Icon";
 import SolidIcon from "@/components/solids/SolidIcon";
 import { suggestedFor } from "@/lib/ask";
 import { syncAlerts } from "@/lib/alertsSync";
-import { ago, fmtTime, reportVisible, workspace } from "@/lib/data";
+import { ago, fmtTime, jobsInScope, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 import { navFor } from "@/lib/nav";
+import QbrGlance from "@/components/QbrGlance";
+import { completeQuarters, priorQuarter, quarterGlance } from "@/lib/qbr";
+import { pinViewLabel, splitPin, type PinView } from "@/lib/pinView";
 import { askQuestion } from "../actions";
 
 export const metadata: Metadata = { title: "Home" };
@@ -24,8 +28,14 @@ export const metadata: Metadata = { title: "Home" };
    analyst's latest read, and (always) a map of where everything is. Field roles get
    a page built around today's entry. More panels can be added under
    Customize. */
-export default async function Home() {
+const WINDOWS = { "1d": { days: 1, label: "Last day" }, "7d": { days: 7, label: "Last 7 days" }, "30d": { days: 30, label: "Last 30 days" } } as const;
+type WindowKey = keyof typeof WINDOWS;
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ changes?: string }> }) {
   const ctx = await requireTenant();
+  const { changes: changesParam } = await searchParams;
+  const win: WindowKey = changesParam && changesParam in WINDOWS ? (changesParam as WindowKey) : "7d";
+  const since = new Date(Date.now() - WINDOWS[win].days * 86_400_000);
   const v = vocabFor(ctx.tenant.industry);
   const ws = await workspace(ctx);
   const alerts = await syncAlerts(ctx);
@@ -47,18 +57,57 @@ export default async function Home() {
       reports: ctx.can("report.view") ? (await listReports(db)).filter((r) => reportVisible(r.layout, ctx)) : [],
       reviews: ctx.can("actions.view") && ctx.tenant.products.includes("insight") ? await listReviews(db) : [],
       actions: ctx.can("actions.view") && ctx.tenant.products.includes("insight") ? await listActionItems(db) : [],
+      activity: await recentActivity(db, ctx.user.id, since, {
+        requests: ctx.can("requests.view"),
+        flags: ctx.can("flags.view"),
+        entries: ctx.can("dashboard.view") ? "all" : ctx.can("input.submit") ? "own" : "none",
+        reviews: ctx.can("actions.view") && ctx.tenant.products.includes("insight"),
+        jobs: ctx.scope?.values ?? null,
+      }),
     }),
     { userId: ctx.user.id },
   );
   const cat = catalog(data.dashboards, ctx);
   const layout = data.saved ? cleanLayout(data.saved, ctx, cat) : defaultLayout(ctx, cat);
-  const kpis = layout.kpis.map((id) => cat.kpis.find((w) => w.id === id)!).filter(Boolean);
-  const charts = layout.charts.map((id) => cat.charts.find((w) => w.id === id)!).filter(Boolean);
+  /* a pin can carry the view it was pinned from (a job, a period, a table instead of a chart) */
+  const withView = (list: string[], from: typeof cat.kpis) =>
+    list.flatMap((e) => {
+      const { id, view } = splitPin(e);
+      const w = from.find((x) => x.id === id);
+      return w ? [{ ...w, key: e, view }] : [];
+    });
+  const kpis = withView(layout.kpis, cat.kpis);
+  const charts = withView(layout.charts, cat.charts);
   const has = (p: string) => layout.panels.includes(p);
 
   const updated = ws.snapshot ? new Date(ws.snapshot.published_at) : null;
   const range = resolveRange(asOfMonth(ws.snapshot?.published_at, tz), "12m");
   const c: BlockContext = { datasets: ws.snapshot?.datasets ?? {}, scope: ctx.scope, eq: {}, range, defs: ws.defs, updated: updated ? ago(updated) : "" };
+  const jobs = jobsInScope(ws.snapshot?.datasets, ctx);
+  /* your pinned numbers: last month against the month before */
+  const lm = resolveRange(asOfMonth(ws.snapshot?.published_at, tz), "lm");
+  const moves = ws.snapshot
+    ? kpis
+        .filter((w) => w.block.type === "kpi" && w.block.compare && isDated(ws.snapshot!.datasets, w.block.dataset))
+        .slice(0, 4)
+        .flatMap((w) => {
+          const b = w.block as KpiBlock;
+          const cur = visibleRows(ws.snapshot!.datasets, b.dataset, ctx.scope, { range: lm.current });
+          const pri = visibleRows(ws.snapshot!.datasets, b.dataset, ctx.scope, { range: lm.prior });
+          const d = kpiData(b, cur, pri);
+          return d.value === null || d.change === null ? [] : [{ title: b.title, value: fmt(d.value, b.format), change: fmtChange(d.change, b.format) ?? "", tone: d.tone }];
+        })
+    : [];
+  const jobName = (code: string) => jobs.find((j) => j.code === code)?.name;
+  /* the view a pin was saved with, checked again against what this person may see */
+  const pinned = (w: { block: Block; view: PinView | null }) => {
+    const v = w.view;
+    if (!v) return { cx: c, mode: undefined, label: "" };
+    const job = v.job && jobName(v.job) ? v.job : undefined;
+    const cx: BlockContext = { ...c, eq: { job }, range: resolveRange(asOfMonth(ws.snapshot?.published_at, tz), v.range ?? "12m", v.from, v.to, v.cmp) };
+    const mode = v.as && viewModes(w.block).includes(v.as) ? v.as : undefined;
+    return { cx, mode, label: pinViewLabel({ ...v, job }, jobName) };
+  };
   const unhealthy = data.sources.filter((s) => s.status !== "healthy");
   const review = data.reviews[0];
   /* leaders see every open action item; everyone else sees their own */
@@ -146,18 +195,75 @@ export default async function Home() {
 
       {kpis.length > 0 && ws.snapshot && (
         <div className="dash-row kpis home-kpis" style={{ ["--cols" as string]: Math.min(4, kpis.length) }}>
-          {kpis.map((w) => (
-            <BlockView key={w.id} block={{ ...w.block, span: 1 }} c={c} />
-          ))}
+          {kpis.map((w) => {
+            const p = pinned(w);
+            return (
+              <div key={w.key} className="pv-wrap">
+                <BlockView block={{ ...w.block, span: 1 }} c={p.cx} />
+                {p.label && <span className="pv-chip">{p.label}</span>}
+              </div>
+            );
+          })}
         </div>
       )}
 
       <div className="bento home-main">
-        {charts.map((w, i) => (
-          <div key={w.id} className={charts.length === 1 || (charts.length % 2 === 1 && i === charts.length - 1) ? "c-12" : "c-6"}>
-            <BlockView block={{ ...w.block, span: 1 }} c={c} />
+        {has("changes") && (
+          <section className="card c-12 changes-card">
+            <div className="panel-h">
+              <h2>What changed</h2>
+              <nav className="range-seg" aria-label="How far back">
+                {(Object.keys(WINDOWS) as WindowKey[]).map((k) => (
+                  <Link key={k} href={k === "7d" ? "/" : `/?changes=${k}`} aria-current={k === win ? "true" : undefined} scroll={false}>
+                    {WINDOWS[k].label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+            {moves.length > 0 && (
+              <div className="moves" aria-label="Your numbers last month">
+                {moves.map((m) => (
+                  <div key={m.title} className="move">
+                    <span className="small muted">
+                      {m.title} · {monthLabel(lm.current.from, { short: true })} vs {lm.prior ? monthLabel(lm.prior.from, { short: true }) : ""}
+                    </span>
+                    <b className="tnum">{m.value}</b>
+                    <span className={`move-ch ${m.tone ?? ""}`}>{m.change}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {data.activity.length ? (
+              <ul className="changes">
+                {data.activity.slice(0, 8).map((a) => (
+                  <li key={`${a.kind}-${a.id}`}>
+                    <span className={`ch-ico k-${a.kind}`} aria-hidden="true">
+                      <Icon name={{ notice: "bell", reply: "chat", action: "check", flag: "flag", entries: "form", review: "review" }[a.kind]} />
+                    </span>
+                    <Link href={a.link}>
+                      <b>{a.title}</b>
+                      <span className="small muted">{a.body}</span>
+                    </Link>
+                    <span className="small muted ch-at">{ago(a.at)}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="small muted" style={{ margin: 0 }}>
+                Nothing new in the {WINDOWS[win].label.toLowerCase()}.
+              </p>
+            )}
+          </section>
+        )}
+        {charts.map((w, i) => {
+          const p = pinned(w);
+          return (
+          <div key={w.key} className={`pv-wrap ${charts.length === 1 || (charts.length % 2 === 1 && i === charts.length - 1) ? "c-12" : "c-6"}`}>
+            {p.mode ? <Shown b={{ ...w.block, span: 1 }} mode={p.mode} c={p.cx} /> : <BlockView block={{ ...w.block, span: 1 }} c={p.cx} />}
+            {p.label && <span className="pv-chip">{p.label}</span>}
           </div>
-        ))}
+          );
+        })}
 
         {has("review") && review && (
           <section className="card c-12 analyst-card">
@@ -186,6 +292,19 @@ export default async function Home() {
             </div>
           </section>
         )}
+
+        {has("qbr") && ws.snapshot && !ctx.scope && ctx.can("dashboard.view") && ctx.tenant.products.includes("insight") && (() => {
+          const q = completeQuarters(asOfMonth(ws.snapshot.published_at, tz))[0];
+          return (
+            <section className="card c-12">
+              <div className="panel-h">
+                <h2>The quarter at a glance</h2>
+                <Link href={`/reviews/qbr?q=${q.key}`}>Open the QBR pack</Link>
+              </div>
+              <QbrGlance rows={quarterGlance(ws.snapshot.datasets, v, q)} current={q.label} prior={priorQuarter(q).label} />
+            </section>
+          );
+        })()}
 
         {has("entries") && (
           <section className="card c-6">

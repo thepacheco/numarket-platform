@@ -21,7 +21,7 @@ export const solidColor: Record<SolidKind, { edge: string; face: string }> = {
   foundation: { edge: "#22577A", face: "#C7F9CC" },
   workspace: { edge: "#38A3A5", face: "#38A3A5" },
   insight: { edge: "#57CC99", face: "#57CC99" },
-  engineering: { edge: "#80ED99", face: "#80ED99" },
+  engineering: { edge: "#9D92EA", face: "#B7AEF2" },
 };
 
 /* a deeper stroke for light backgrounds, so thin lines stay visible */
@@ -29,7 +29,7 @@ export const solidInk: Record<SolidKind, string> = {
   foundation: "#22577A",
   workspace: "#2a8f91",
   insight: "#2e9e6b",
-  engineering: "#3fb96a",
+  engineering: "#6c5dd3",
 };
 
 const PHI = (1 + Math.sqrt(5)) / 2;

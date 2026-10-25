@@ -73,9 +73,7 @@ export function ago(d: Date | string) {
   return days === 1 ? "yesterday" : `${days} days ago`;
 }
 
-export function todayIn(tz: string) {
-  return new Date().toLocaleDateString("en-CA", { timeZone: tz });
-}
+export { daysFromToday, dueDate, localLink, monthStartIn, todayIn } from "./dates";
 
 /** A report fixed to one job is shown only to people whose scope includes it;
  *  a company-wide report only to people who see the whole company. */

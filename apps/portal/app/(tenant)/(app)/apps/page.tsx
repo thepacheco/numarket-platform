@@ -58,10 +58,16 @@ export default async function Apps() {
           <div>
             <h2>Need something else?</h2>
             <p className="muted" style={{ margin: 0 }}>
-              Estimating, approvals, writing back into your systems, moving off old software, turning paper into data. Tell your numarket analyst what you do by hand today; Engineering quotes it as a project.
+              Estimating, approvals, writing back into your systems, moving off old software, turning paper into data. Tell us what your team does by hand today; Engineering quotes it as a project, and you follow it on the Requests board.
             </p>
           </div>
-          <span className="pill brand">Quoted per project</span>
+          {ctx.can("requests.submit") ? (
+            <Link href="/requests/new?kind=app&product=engineering" className="btn btn-primary">
+              Suggest an app
+            </Link>
+          ) : (
+            <span className="pill brand">Quoted per project</span>
+          )}
         </div>
       </div>
     </>

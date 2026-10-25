@@ -4,7 +4,7 @@ import { rotate } from "./rotate";
 /* A static drawing of a product solid, for small places (menus, labels).
    Same shapes and colors as the marketing site: Foundation cube (navy),
    Workspace dodecahedron (teal), Insight Review octahedron (green),
-   Engineering icosahedron (light green, dashed). */
+   Engineering icosahedron (purple, dashed). */
 export default function SolidIcon({ kind, size = 20, className, muted = false }: { kind: SolidKind; size?: number; className?: string; muted?: boolean }) {
   const s = solids[kind];
   const rot = { x: 0.5, y: 0.6, z: 0.08 };

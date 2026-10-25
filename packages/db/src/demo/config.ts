@@ -210,7 +210,8 @@ export function buildReviews(ds: DS, asOf: Date) {
     return { o: rows.reduce((t, r) => t + n(r.opened), 0), c: rows.reduce((t, r) => t + n(r.closed), 0) };
   };
   const cash = (m: string) => n(ds.cash.find((r) => r.month === m)?.balance);
-  const due = (d: number) => `${shortMonth(cur)} ${d}`;
+  /* due dates move with each nightly reset, so the demo always shows one item late, one this week, one later */
+  const dueIn = (days: number) => new Date(asOf.getTime() + days * 86_400_000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const rP = rfi(P);
   const gmDelta = (gm(L) - gm(P)) * 100;
 
@@ -233,9 +234,9 @@ export function buildReviews(ds: DS, asOf: Date) {
           { title: "Medical Office Building budget sheet", detail: "The budget sheet hasn't been updated in 9 days while costs post daily, so cost performance there is less reliable until it's refreshed." },
         ],
         recommendations: [
-          { title: "Review design-error change orders with the engineer of record", detail: "Bring the five largest to Thursday's meeting and ask whether the drawings need a revision cycle.", owner: "Marcus Lee", due: due(9) },
-          { title: `Call ${ar[0].customer} accounts payable`, detail: "Confirm the open invoices are approved and ask for their payment date.", owner: "Priya Shah", due: due(7) },
-          { title: "Refresh the Medical Office Building budget sheet", detail: "Update it in the SharePoint folder; the next overnight update picks it up.", owner: "Project controls", due: due(8) },
+          { title: "Review design-error change orders with the engineer of record", detail: "Bring the five largest to Thursday's meeting and ask whether the drawings need a revision cycle.", owner: "Marcus Lee", due: dueIn(3), doneWhen: "Each of the five has a decision: revise the drawings, or accept the change.", source: { label: `${worst.name} cost performance ${n(worst.cpi).toFixed(2)}`, link: "/dashboards/projects?page=change-orders" } },
+          { title: `Call ${ar[0].customer} accounts payable`, detail: "Confirm the open invoices are approved and ask for their payment date.", owner: "Priya Shah", due: dueIn(-2), doneWhen: "A payment date from the customer, in writing.", source: { label: `Owed over 60 days: ${money(over60)}`, link: "/dashboards/financials?page=receivables" } },
+          { title: "Refresh the Medical Office Building budget sheet", detail: "Update it in the SharePoint folder; the next overnight update picks it up.", owner: "Project controls", due: dueIn(9), doneWhen: "The budget sheet updated within the last 2 days.", source: { label: "Budget sheet: 9 days since its last update", link: "/health" } },
         ],
         usage: { rows: "184,000 new rows", allowance: "58% of your platform allowance", note: "Steady. No change needed." },
         next: `${monthName(cur)} review: ${monthName(addM(cur, 1))} 4`,

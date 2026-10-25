@@ -5,9 +5,10 @@ import Rail from "@/components/Rail";
 import Tooltips from "@/components/Tooltips";
 import { requireTenant } from "@/lib/guard";
 import { syncAlerts } from "@/lib/alertsSync";
+import { withTenant } from "@numarket/db";
+import { countWaitingOn } from "@numarket/db/repo/requests";
 import { fmtDateTime, fmtTime, jobsInScope, workspace } from "@/lib/data";
 import { canSeeSettings, navFor, ROLE_LABEL, scopeLabel } from "@/lib/nav";
-import { MARKETING_URL } from "@/lib/request";
 
 /* The tenant app shell. It reads the session only to draw the navigation;
    each page and action still checks access itself (lib/guard.ts). */
@@ -22,7 +23,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const tz = ctx.tenant.timezone;
   const updated = ws.snapshot ? fmtDateTime(ws.snapshot.published_at, tz) : "not yet";
 
-  const rail = (mobile: boolean) => <Rail sections={sections} flags={ws.openFlags} settings={canSeeSettings(ctx)} mobile={mobile} />;
+  /* the Requests entry shows what's waiting on this person to sign off */
+  const waiting = ctx.can("requests.view") ? await withTenant(ctx.tenant.id, (db) => countWaitingOn(db, ctx.user.id, ctx.can("requests.approve")), { userId: ctx.user.id }) : null;
+  const rail = (mobile: boolean) => <Rail sections={sections} flags={ws.openFlags} settings={canSeeSettings(ctx)} requests={waiting} mobile={mobile} />;
 
   return (
     <div className="app" style={brandVars(b?.primary_color ?? "#22577A", b?.accent_color ?? "#38A3A5")}>
@@ -35,16 +38,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {ctx.tenant.sandboxUntil.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: ctx.tenant.timezone })}
               </>
             ) : (
-              <>
-                <b>Demo workspace</b> · fictional sample data, resets nightly
-              </>
+              <b>Sample data</b>
             )}
           </span>
           <span className="demo-who">
             Viewing as {ctx.user.name} · {ROLE_LABEL[ctx.role]} · {scopeLabel(ctx, jobs)}
           </span>
           <span className="demo-links">
-            <a href={`${MARKETING_URL}/contact`}>Book a free Readiness Check</a>
             <Link href="/sign-in">Switch person</Link>
           </span>
         </div>
