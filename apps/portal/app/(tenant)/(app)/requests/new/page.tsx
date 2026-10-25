@@ -34,7 +34,7 @@ export default async function NewRequest({ searchParams }: { searchParams: Promi
           <p>Describe it in your own words. We build it, fix it, or quote it, and you can follow it on the board.</p>
         </div>
       </div>
-      <RequestForm action={createRequestAction} initial={{ kind, product, title: q.title?.slice(0, 140), link, from: q.from?.slice(0, 80) }} changeHoursLeft={left} />
+      <RequestForm action={createRequestAction} initial={{ kind, product, title: q.title?.slice(0, 140), link, from: q.from?.slice(0, 80) }} changeHoursLeft={left} canAsk={ctx.tenant.products.includes("insight")} />
     </>
   );
 }

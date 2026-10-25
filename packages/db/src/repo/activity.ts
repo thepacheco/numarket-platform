@@ -16,13 +16,15 @@ export async function recentActivity(
   /* alerts that fired, reminders, and charts people sent this person */
   for (const n of (await db.query<{ id: string; title: string; body: string; link: string | null; created_at: Date }>("select id, title, body, link, created_at from notifications where user_id = $1 and created_at >= $2 order by created_at desc limit 12", [userId, since])).rows)
     out.push({ kind: "notice", id: n.id, title: n.title, body: n.body, link: n.link ?? "/alerts", at: n.created_at });
-  /* numarket's replies and moves on the Requests board */
+  /* numarket's replies and moves on the Requests board (someone limited to
+     certain jobs sees answers only to their own questions) */
   if (can.requests)
     for (const r of (
       await db.query<{ id: string; rid: string; title: string; body: string; status: string | null; created_at: Date }>(
         `select u.id, r.id as rid, r.title, u.body, u.status, u.created_at from request_updates u join requests r on r.id = u.request_id
-         where u.user_id is null and u.created_at >= $1 order by u.created_at desc limit 8`,
-        [since],
+         where u.user_id is null and u.created_at >= $1 and (r.kind <> 'question' or not $2 or r.requested_by = $3)
+         order by u.created_at desc limit 8`,
+        [since, can.jobs !== null, userId],
       )
     ).rows)
       out.push({ kind: "reply", id: r.id, title: r.title, body: r.body, link: `/requests/${r.rid}`, at: r.created_at });

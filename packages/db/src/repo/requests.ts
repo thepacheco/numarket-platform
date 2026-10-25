@@ -5,7 +5,7 @@ import type { Db } from "../client";
    person who asked (or an admin) signs off when it's ready for review.
    Callers check permissions before calling. */
 
-export const REQUEST_KINDS = ["change", "app", "issue", "improvement"] as const;
+export const REQUEST_KINDS = ["change", "app", "issue", "improvement", "question"] as const;
 export const REQUEST_STATUSES = ["submitted", "planned", "in_progress", "review", "done"] as const;
 export const REQUEST_PRODUCTS = ["foundation", "workspace", "insight", "engineering"] as const;
 export type RequestKind = (typeof REQUEST_KINDS)[number];
@@ -17,6 +17,7 @@ export const KIND_LABEL: Record<RequestKind, string> = {
   app: "New app idea",
   issue: "Something's wrong",
   improvement: "Improvement",
+  question: "Question for your analyst",
 };
 export const STATUS_LABEL: Record<RequestStatus, string> = {
   submitted: "Submitted",
@@ -82,6 +83,25 @@ export async function addRequestUpdate(db: Db, id: string, u: { author: string; 
   await db.query("insert into request_updates (tenant_id, request_id, user_id, author, body, status) values (current_tenant(), $1, $2, $3, $4, $5)", [id, u.userId, u.author, u.body, u.status ?? null]);
   if (u.status) await db.query("update requests set status = $2, updated_at = now(), done_at = case when $2 = 'done' then now() else null end where id = $1", [id, u.status]);
   else await db.query("update requests set updated_at = now() where id = $1", [id]);
+}
+
+/** Answers to questions can carry company-wide numbers, so people limited
+    to certain jobs see only the questions they asked themselves. */
+export function canSeeRequest(r: Pick<RequestRow, "kind" | "requested_by">, who: { userId: string; scoped: boolean }) {
+  return r.kind !== "question" || !who.scoped || r.requested_by === who.userId;
+}
+
+/** The analyst's latest reply on each question, for the Questions list. */
+export async function latestAnswers(db: Db) {
+  const rows = (
+    await db.query<{ request_id: string; author: string; body: string; created_at: Date }>(
+      `select distinct on (u.request_id) u.request_id, u.author, u.body, u.created_at
+       from request_updates u join requests r on r.id = u.request_id
+       where r.kind = 'question' and u.user_id is null and u.status = 'done'
+       order by u.request_id, u.created_at desc`,
+    )
+  ).rows;
+  return new Map(rows.map((r) => [r.request_id, r]));
 }
 
 /** Change hours used this month: work numarket started on change requests this month. */

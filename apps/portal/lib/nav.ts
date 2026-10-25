@@ -84,6 +84,7 @@ export function hubTabs(hub: Hub, ctx: TenantContext): HubTab[] {
           : [
               { href: "/reviews", label: "Overview", ok: ctx.can("actions.view") },
               { href: "/reviews/actions", label: "Action items", ok: ctx.can("actions.view") },
+              { href: "/reviews/questions", label: "Questions", ok: ctx.can("requests.view") && ctx.tenant.products.includes("insight") },
               { href: "/reviews/qbr", label: "QBR pack", ok: ctx.can("actions.view") && ctx.can("dashboard.view") && !ctx.scope },
             ];
   const out = tabs.filter((t) => t.ok).map(({ ok: _ok, ...t }) => t);

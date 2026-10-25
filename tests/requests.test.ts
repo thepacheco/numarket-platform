@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { can, PERMISSIONS } from "../packages/auth/src/permissions";
 import { tenantBySlug, type Tenant } from "../packages/auth/src/context";
 import { closePool, withTenant } from "../packages/db/src/client";
-import { addRequestUpdate, changeHoursUsed, countWaitingOn, getRequest, insertRequest, listRequests, requestUpdates, type RequestRow } from "../packages/db/src/repo/requests";
+import { addRequestUpdate, canSeeRequest, changeHoursUsed, latestAnswers, countWaitingOn, getRequest, insertRequest, listRequests, requestUpdates, type RequestRow } from "../packages/db/src/repo/requests";
 import { TIER_LIMITS } from "../packages/metering/src/limits";
 
 let demo: Tenant;
@@ -37,6 +37,24 @@ describe("the demo board", () => {
     const rows = await withTenant(demo.id, listRequests);
     expect(new Set(rows.map((r) => r.status))).toEqual(new Set(["submitted", "planned", "in_progress", "review", "done"]));
     for (const r of rows) expect(r.updates).toBeGreaterThan(0);
+  });
+});
+
+describe("questions for the analyst", () => {
+  it("the demo has an answered question and one waiting, and the answer is the analyst's", async () => {
+    const { rows, answers } = await withTenant(demo.id, async (db) => ({ rows: (await listRequests(db)).filter((r) => r.kind === "question"), answers: await latestAnswers(db) }));
+    expect(rows.some((r) => r.status === "done")).toBe(true);
+    expect(rows.some((r) => r.status !== "done")).toBe(true);
+    for (const r of rows) expect(r.product).toBe("insight");
+    for (const r of rows.filter((r) => r.status === "done")) expect(answers.get(r.id)?.author).toContain("numarket");
+    for (const r of rows.filter((r) => r.status !== "done")) expect(answers.has(r.id)).toBe(false);
+  });
+  it("someone limited to certain jobs sees only the questions they asked", () => {
+    const q = { kind: "question" as const, requested_by: "a" };
+    expect(canSeeRequest(q, { userId: "a", scoped: true })).toBe(true);
+    expect(canSeeRequest(q, { userId: "b", scoped: true })).toBe(false);
+    expect(canSeeRequest(q, { userId: "b", scoped: false })).toBe(true);
+    expect(canSeeRequest({ kind: "change", requested_by: "a" }, { userId: "b", scoped: true })).toBe(true);
   });
 });
 

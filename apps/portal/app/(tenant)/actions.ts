@@ -8,7 +8,7 @@ import { getPolicy, updateBranding, updateMember, updatePolicy } from "@numarket
 import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllowed } from "@numarket/db/repo/snapshots";
 import { addSource, getHomeLayout, createReport, listActionItems, setActionStatus, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
 import { REPORT_TEMPLATES } from "@numarket/db/demo/config";
-import { addRequestUpdate, getRequest, insertRequest, REQUEST_KINDS, REQUEST_PRODUCTS, type RequestKind, type RequestProduct, type SketchBlock } from "@numarket/db/repo/requests";
+import { addRequestUpdate, canSeeRequest, getRequest, insertRequest, REQUEST_KINDS, REQUEST_PRODUCTS, type RequestKind, type RequestProduct, type SketchBlock } from "@numarket/db/repo/requests";
 import { TIER_LIMITS } from "@numarket/metering";
 import { companyDatasets, toLayout } from "@/lib/reportDesign";
 import { updateNowLimit } from "@numarket/metering";
@@ -849,6 +849,7 @@ export async function createRequestAction(_: ActionResult | null, form: FormData
     const sketch = form.getAll("sketch").map(String).filter((b): b is SketchBlock => SKETCH_BLOCKS.includes(b as SketchBlock));
     const errors: Record<string, string> = {};
     if (!REQUEST_KINDS.includes(kind)) errors.kind = "Pick what kind of request this is.";
+    if (kind === "question" && !ctx.tenant.products.includes("insight")) errors.kind = "Questions go to your analyst, which comes with Insight Review.";
     if (!REQUEST_PRODUCTS.includes(product)) errors.product = "Pick what it's about.";
     if (title.length < 3) errors.title = "Give it a short title.";
     if (Object.keys(errors).length) return { ok: false, message: "Please fix the highlighted fields.", errors };
@@ -859,7 +860,7 @@ export async function createRequestAction(_: ActionResult | null, form: FormData
       await addRequestUpdate(db, id, { author: "numarket", userId: null, body: `Received. Your analyst replies within ${TIER_LIMITS[ctx.tenant.tier].replyTime}.` });
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "request.create", target: title.slice(0, 120), detail: { kind, product }, ip: meta.ip });
       revalidatePath("/requests", "layout");
-      return { ok: true, message: "Added to the board. Your analyst will reply here.", redirect: `/requests/${id}` };
+      return { ok: true, message: kind === "question" ? "Sent to your analyst. The answer will appear here." : "Added to the board. Your analyst will reply here.", redirect: `/requests/${id}` };
     }, { userId: ctx.user.id });
   });
 }
@@ -873,7 +874,7 @@ export async function requestUpdateAction(_: ActionResult | null, form: FormData
     const body = str(form, "body").slice(0, 4000);
     return withTenant(ctx.tenant.id, async (db) => {
       const r = await getRequest(db, id);
-      if (!r) throw new ActionError("That request doesn't exist.");
+      if (!r || !canSeeRequest(r, { userId: ctx.user.id, scoped: !!ctx.scope })) throw new ActionError("That request doesn't exist.");
       if (intent === "approve" || intent === "send_back") {
         if (r.status !== "review") throw new ActionError("Only requests that are ready for your review can be signed off.");
         const mine = r.requested_by === ctx.user.id;
