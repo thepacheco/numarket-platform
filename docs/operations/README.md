@@ -2,6 +2,8 @@
 
 **As of October 10, 2026.** Owner: Brandon. Internal. Don't share outside numarket.
 
+**New on October 25:** `docs/start-here.md` in the website repo: what's real today, every promise the website makes and its status, and the go-live order.
+
 **Just back, or starting fresh? Open [`50-day-plan.md`](50-day-plan.md) first:** today's
 checklist and the week-by-week path to the first client.
 

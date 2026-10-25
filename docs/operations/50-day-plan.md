@@ -13,7 +13,8 @@ as PDFs in their branding, input screens that replace paper, and Ask Your
 Data. An analyst reviews the numbers with them on a schedule. Custom builds are
 quoted separately. Four products: Foundation (the clean data), Workspace (the
 Portal), Insight Review (the analyst), Engineering (custom builds). Smallest
-bundle: $7,500 setup, $2,500 a month.
+size with all three products: $9,500 setup, $3,000 a month (prices as of
+October 25; the website's Pricing page shows every line).
 
 ## The one thing to understand
 

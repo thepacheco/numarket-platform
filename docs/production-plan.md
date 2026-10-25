@@ -145,7 +145,7 @@ weeks running and agrees to the case study.
 | SOC 2 readiness tool + audit | Phase 7 | roughly $10,000–30,000 per year all-in |
 
 Before the first client: about $100–300 a month plus the one-time gate costs.
-One Small client on the Insight plan ($2,500/month) covers the running costs
+One Small client with all three products ($3,000/month) covers the running costs
 several times over.
 
 ---
