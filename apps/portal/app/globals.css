@@ -4512,7 +4512,7 @@ button.rail2-h:hover {
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 10px;
 }
 .req-kinds legend {
@@ -4741,7 +4741,7 @@ button.rail2-h:hover {
   margin: 0 0 18px;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr));
   gap: 6px;
 }
 .req-steps li {
@@ -5547,4 +5547,70 @@ button.rail2-h:hover {
 .req-filters .range-seg {
   max-width: 100%;
   overflow-x: auto;
+}
+
+/* ---- v4: questions for your analyst ---- */
+.q-tip {
+  margin: -4px 0 16px;
+}
+.q-tip svg {
+  vertical-align: -2px;
+  margin-right: 4px;
+}
+.q-group {
+  margin-bottom: 20px;
+}
+.q-group h2 {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  display: flex;
+  gap: 8px;
+}
+.q-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.q-item a {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: inset 3px 0 0 var(--p-insight);
+  color: var(--text);
+  text-decoration: none;
+}
+.q-item a:hover {
+  border-color: var(--border-strong);
+}
+.q-item.waiting a {
+  box-shadow: inset 3px 0 0 var(--border-strong);
+}
+.q-item p {
+  margin: 0;
+  color: var(--text-2);
+}
+.q-answer {
+  margin: 4px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--p-insight) 8%, var(--surface));
+}
+.q-answer p {
+  color: var(--text);
+  line-height: 1.5;
+}
+.q-answer cite {
+  display: block;
+  margin-top: 6px;
+  font-style: normal;
+  color: var(--text-2);
 }

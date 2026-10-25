@@ -13,7 +13,8 @@ as PDFs in their branding, input screens that replace paper, and Ask Your
 Data. An analyst reviews the numbers with them on a schedule. Custom builds are
 quoted separately. Four products: Foundation (the clean data), Workspace (the
 Portal), Insight Review (the analyst), Engineering (custom builds). Smallest
-bundle: $7,500 setup, $2,500 a month.
+size with all three products: $9,500 setup, $3,000 a month (prices as of
+October 25; the website's Pricing page shows every line).
 
 ## The one thing to understand
 
@@ -65,7 +66,7 @@ Selling starts on Day 1. It does not wait for the build.
 - [ ] Ask an attorney for a quote on the contract set (MSA, order form, DPA, pilot agreement, privacy policy): roughly $2,000–5,000.
 - [ ] Ask an insurance broker for E&O + cyber quotes.
 - [ ] Apply: **Snowflake Partner Network**, **Intuit Developer** (start the production review now; it takes weeks), **Procore Developer**.
-- [ ] Practice the 15-minute demo three times (script in `../selling-checklist.md` §C), out loud.
+- [ ] Practice the 15-minute demo three times (script in `selling-checklist.md` §C), out loud.
 
 **Build (Claude Code)**
 - [ ] Both sites live and connected; uptime monitor; error alerts (Sentry, needs a free account from you).

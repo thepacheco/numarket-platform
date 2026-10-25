@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { fmt } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
-import { changeHoursUsed, KIND_LABEL, listRequests, REQUEST_STATUSES, STATUS_LABEL, type RequestKind, type RequestProduct, type RequestRow } from "@numarket/db/repo/requests";
+import { canSeeRequest, changeHoursUsed, KIND_LABEL, listRequests, REQUEST_STATUSES, STATUS_LABEL, type RequestKind, type RequestProduct, type RequestRow } from "@numarket/db/repo/requests";
 import { TIER_LIMITS } from "@numarket/metering";
 import Icon from "@/components/Icon";
 import SolidIcon from "@/components/solids/SolidIcon";
@@ -18,6 +18,7 @@ const KIND_FILTERS: { id: RequestKind | "all"; label: string }[] = [
   { id: "app", label: "App ideas" },
   { id: "issue", label: "Issues" },
   { id: "improvement", label: "Improvements" },
+  { id: "question", label: "Questions" },
 ];
 
 function Card({ r, me }: { r: RequestRow; me: string }) {
@@ -51,7 +52,8 @@ function Card({ r, me }: { r: RequestRow; me: string }) {
 export default async function Requests({ searchParams }: { searchParams: Promise<{ kind?: string; product?: string; mine?: string }> }) {
   const ctx = await requireTenant("requests.view");
   const q = await searchParams;
-  const rows = await withTenant(ctx.tenant.id, (db) => listRequests(db), { userId: ctx.user.id });
+  const who = { userId: ctx.user.id, scoped: !!ctx.scope };
+  const rows = (await withTenant(ctx.tenant.id, (db) => listRequests(db), { userId: ctx.user.id })).filter((r) => canSeeRequest(r, who));
   const limits = TIER_LIMITS[ctx.tenant.tier];
   const used = changeHoursUsed(rows, monthStartIn(ctx.tenant.timezone));
   const month = new Date().toLocaleDateString("en-US", { month: "long", timeZone: ctx.tenant.timezone });
@@ -60,7 +62,8 @@ export default async function Requests({ searchParams }: { searchParams: Promise
   const kind = KIND_FILTERS.some((k) => k.id === q.kind) ? (q.kind as RequestKind | "all") : "all";
   const product = q.product && q.product in PRODUCT_INFO ? (q.product as RequestProduct) : null;
   const mine = q.mine === "1";
-  const shown = rows.filter((r) => (kind === "all" || r.kind === kind) && (!product || r.product === product) && (!mine || r.requested_by === ctx.user.id));
+  /* questions live under Your analyst; they show here only when asked for */
+  const shown = rows.filter((r) => (kind === "all" ? r.kind !== "question" : r.kind === kind) && (!product || r.product === product) && (!mine || r.requested_by === ctx.user.id));
   const href = (p: { kind?: string; product?: string | null; mine?: boolean }) => {
     const s = new URLSearchParams();
     const k = p.kind ?? kind;
@@ -113,11 +116,6 @@ export default async function Requests({ searchParams }: { searchParams: Promise
               <span className="small muted">Extra hours are $175, in blocks of 5. Unused hours don&apos;t roll over.</span>
             </>
           )}
-        </div>
-        <div className="req-stat">
-          <small>Reply time</small>
-          <b>{limits.replyTime}</b>
-          <span className="small muted">From your analyst, on every request.</span>
         </div>
       </div>
 

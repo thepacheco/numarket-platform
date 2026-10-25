@@ -2,7 +2,7 @@
 
 **Version 2 · October 25, 2026 · Owner: Brandon.** Internal. Written from
 Brandon's walkthrough of the live demo (Summit Builders) on October 24. It
-builds on `numarket-product-and-pricing.md` (v3), which stays the source of
+builds on `product-and-pricing.md` (v3), which stays the source of
 truth for the products, prices, and who does what. Where this file and v3
 disagree, v3 wins and this file gets fixed. Pass both to anyone working on the
 Portal.

@@ -3,8 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fmt } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
-import { getRequest, KIND_LABEL, REQUEST_STATUSES, requestUpdates, STATUS_LABEL } from "@numarket/db/repo/requests";
-import { TIER_LIMITS } from "@numarket/metering";
+import { canSeeRequest, getRequest, KIND_LABEL, REQUEST_STATUSES, requestUpdates, STATUS_LABEL } from "@numarket/db/repo/requests";
+import { listReviews } from "@numarket/db/repo/workspace";
 import ActionForm, { Submit } from "@/components/ActionForm";
 import SketchPreview from "@/components/SketchPreview";
 import SolidIcon from "@/components/solids/SolidIcon";
@@ -15,17 +15,31 @@ import { requestUpdateAction } from "../../../actions";
 
 export const metadata: Metadata = { title: "Request" };
 
+/* "/dashboards/financials?page=overview" reads as "Financials dashboard" */
+function linkLabel(link: string) {
+  const parts = link.split("?")[0].replace(/^\//, "").split("/");
+  const name = (parts[1] ?? parts[0]).replace(/-/g, " ");
+  const cap = name.charAt(0).toUpperCase() + name.slice(1);
+  return parts[0] === "dashboards" && parts[1] ? `${cap} dashboard` : parts[0] === "explore" && parts[1] ? `${cap} in Explore` : parts.join(" › ").replace(/-/g, " ");
+}
+
 export default async function RequestPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireTenant("requests.view");
   const { id } = await params;
   const data = await withTenant(ctx.tenant.id, async (db) => {
     const r = await getRequest(db, id);
-    return r ? { r, updates: await requestUpdates(db, id) } : null;
+    if (!r || !canSeeRequest(r, { userId: ctx.user.id, scoped: !!ctx.scope })) return null;
+    /* a question goes straight to the analyst who writes the reviews */
+    const analyst = r.kind === "question" ? ((await listReviews(db))[0]?.analyst.split(",")[0] ?? null) : null;
+    return { r, updates: await requestUpdates(db, id), analyst };
   }, { userId: ctx.user.id });
   if (!data) notFound();
-  const { r, updates } = data;
+  const { r, updates, analyst } = data;
+  const question = r.kind === "question";
   const tz = ctx.tenant.timezone;
-  const step = REQUEST_STATUSES.indexOf(r.status);
+  /* a question is asked, then answered; everything else moves through the board's columns */
+  const steps = r.kind === "question" ? (["submitted", "done"] as const) : REQUEST_STATUSES;
+  const step = r.kind === "question" ? (r.status === "done" ? 1 : 0) : REQUEST_STATUSES.indexOf(r.status);
   const canSignOff = r.status === "review" && ctx.can("requests.submit") && (r.requested_by === ctx.user.id || ctx.can("requests.approve"));
   const canComment = ctx.can("requests.submit") && r.status !== "done";
 
@@ -34,7 +48,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
       <div className="page-head">
         <div>
           <p className="eyebrow">
-            <Link href="/requests">Requests</Link> · {KIND_LABEL[r.kind]}
+            {question ? <Link href="/reviews/questions">Questions</Link> : <Link href="/requests">Requests</Link>} · {KIND_LABEL[r.kind]}
           </p>
           <h1>{r.title}</h1>
           <p className="row" style={{ gap: 8, flexWrap: "wrap" }}>
@@ -49,11 +63,11 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <ol className="req-steps" aria-label="Where it stands">
-        {REQUEST_STATUSES.map((s, i) => (
-          <li key={s} className={i < step ? "done" : i === step ? "now" : ""} aria-current={i === step ? "step" : undefined}>
+      <ol className="req-steps" style={{ ["--n" as string]: steps.length }} aria-label="Where it stands">
+        {steps.map((st, i) => (
+          <li key={st} className={i < step ? "done" : i === step ? "now" : ""} aria-current={i === step ? "step" : undefined}>
             <span>{i < step ? "✓" : i + 1}</span>
-            {STATUS_LABEL[s]}
+            {r.kind === "question" ? (st === "done" ? "Answered" : "Asked") : STATUS_LABEL[st]}
           </li>
         ))}
       </ol>
@@ -124,11 +138,11 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           <dl>
             <div>
               <dt>Status</dt>
-              <dd>{STATUS_LABEL[r.status]}</dd>
+              <dd>{question ? (r.status === "done" ? "Answered" : "Waiting for an answer") : STATUS_LABEL[r.status]}</dd>
             </div>
             <div>
               <dt>With</dt>
-              <dd>{r.assignee ?? "Your analyst, once it's planned"}</dd>
+              <dd>{r.assignee ?? (question ? (analyst ?? "Your analyst") : "Your analyst, once it's planned")}</dd>
             </div>
             {r.estimate_hours && (
               <div>
@@ -148,14 +162,10 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
               <div>
                 <dt>Asked from</dt>
                 <dd>
-                  <Link href={r.link}>{r.link.split("?")[0].replace(/^\//, "").replace(/\//g, " › ").replace(/-/g, " ")}</Link>
+                  <Link href={r.link}>{linkLabel(r.link)}</Link>
                 </dd>
               </div>
             )}
-            <div>
-              <dt>Reply time</dt>
-              <dd>{TIER_LIMITS[ctx.tenant.tier].replyTime}</dd>
-            </div>
             <div>
               <dt>Last update</dt>
               <dd>{fmtDateTime(r.updated_at, tz)}</dd>

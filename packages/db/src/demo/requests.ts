@@ -100,7 +100,7 @@ const CONSTRUCTION: SampleRequest[] = [
     priority: "high",
     updates: [
       { by: "dana.reyes@summitbuilders.example", daysAgo: 0, body: "Data health says ADP needs reconnecting. Who does that?", status: "submitted" },
-      { by: null, daysAgo: 0, body: "Received. Your analyst replies within 4 business hours." },
+      { by: null, daysAgo: 0, body: "Received. Your analyst will reply here." },
     ],
   },
   {
@@ -140,6 +140,41 @@ const CONSTRUCTION: SampleRequest[] = [
       { by: "dana.reyes@summitbuilders.example", daysAgo: 34, body: "Design errors, owner changes, unforeseen conditions, separately.", status: "submitted" },
       { by: null, daysAgo: 30, body: "Live on Projects → Change orders.", status: "review" },
       { by: "dana.reyes@summitbuilders.example", daysAgo: 29, body: "Looks right. Thanks.", status: "done" },
+    ],
+  },
+];
+
+const CONSTRUCTION_QUESTIONS: SampleRequest[] = [
+  {
+    by: "priya.shah@summitbuilders.example",
+    kind: "question",
+    product: "insight",
+    title: "Why did gross margin drop in September?",
+    detail: "Margin looks lower than August. Is it something to worry about?",
+    status: "done",
+    link: "/dashboards/financials?page=profit-loss",
+    assignee: AVERY,
+    updates: [
+      { by: "priya.shah@summitbuilders.example", daysAgo: 6, body: "Margin looks lower than August. Is it something to worry about?", status: "submitted" },
+      {
+        by: null,
+        daysAgo: 6,
+        body: "Two things, both explainable. Route 9 Bridge took on design-error change orders that aren't billed yet, and there was a one-time $38K equipment repair. Without those, margin was 18.9%. Billing the approved change orders in October recovers most of it, so no action beyond that.",
+        status: "done",
+      },
+    ],
+  },
+  {
+    by: "marcus.lee@summitbuilders.example",
+    kind: "question",
+    product: "insight",
+    title: "Is Route 9 Bridge getting better or worse?",
+    detail: "Cost performance is 0.94. Is that trending up since we started the weekly RFI review?",
+    status: "submitted",
+    link: "/dashboards/projects?job=114",
+    updates: [
+      { by: "marcus.lee@summitbuilders.example", daysAgo: 0, body: "Cost performance is 0.94. Is that trending up since we started the weekly RFI review?", status: "submitted" },
+      { by: null, daysAgo: 0, body: "Received. Your analyst will reply here." },
     ],
   },
 ];
@@ -205,7 +240,24 @@ const SERVICES: SampleRequest[] = [
   },
 ];
 
+const SERVICES_QUESTIONS: SampleRequest[] = [
+  {
+    by: "david.chen@brightline.example",
+    kind: "question",
+    product: "insight",
+    title: "Why did billable hours dip in August?",
+    detail: "",
+    status: "done",
+    link: "/dashboards/projects?page=field-hours",
+    assignee: AVERY,
+    updates: [
+      { by: "david.chen@brightline.example", daysAgo: 9, body: "Billable hours dipped in August. Anything we should do?", status: "submitted" },
+      { by: null, daysAgo: 8, body: "Two consultants were on vacation and Northfield paused for sign-off. September is back to plan, so no action needed.", status: "done" },
+    ],
+  },
+];
+
 export function sampleRequests(industry: Industry): SampleRequest[] {
-  return industry === "services" ? SERVICES : CONSTRUCTION;
+  return industry === "services" ? [...SERVICES, ...SERVICES_QUESTIONS] : [...CONSTRUCTION, ...CONSTRUCTION_QUESTIONS];
 }
 export const SAMPLE_ANALYST = AVERY;

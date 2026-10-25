@@ -65,7 +65,7 @@ export function stateQuery(s: DashState, override: Record<string, string | undef
   return q.toString();
 }
 
-export function DashboardView({ base, layout, datasets, ctx, state, defs, updated, pins, send, before }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string; pins?: Pins; send?: Send; before?: React.ReactNode }) {
+export function DashboardView({ base, layout, datasets, ctx, state, defs, updated, pins, send, ask = false, before }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string; pins?: Pins; send?: Send; ask?: boolean; before?: React.ReactNode }) {
   const c: BlockContext = {
     datasets,
     scope: ctx.scope,
@@ -94,7 +94,7 @@ export function DashboardView({ base, layout, datasets, ctx, state, defs, update
       )}
       <FilterBar base={base} state={state} ctx={ctx} />
       {before}
-      <Rows rows={state.page.rows} c={c} pins={pins} drill={{ base, state }} send={send} />
+      <Rows rows={state.page.rows} c={c} pins={pins} drill={{ base, state }} send={send} ask={ask} />
     </>
   );
 }
@@ -148,7 +148,7 @@ function pinView(state: DashState, mode?: ViewMode) {
   return query ? { query, label: pinViewLabel(v, (code) => state.jobs.find((j) => j.v === code)?.l) } : undefined;
 }
 
-export function Rows({ rows, c, pins, drill, send }: { rows: Page["rows"]; c: BlockContext; pins?: Pins; drill?: { base: string; state: DashState }; send?: Send }) {
+export function Rows({ rows, c, pins, drill, send, ask = false }: { rows: Page["rows"]; c: BlockContext; pins?: Pins; drill?: { base: string; state: DashState }; send?: Send; ask?: boolean }) {
   return (
     <div className="dash">
       {rows.map((row, i) => {
@@ -174,6 +174,15 @@ export function Rows({ rows, c, pins, drill, send }: { rows: Page["rows"]; c: Bl
                           </Link>
                         ))}
                       </span>
+                    )}
+                    {ask && drill && (
+                      <Link
+                        href={`/requests/new?${new URLSearchParams({ kind: "question", product: "insight", title: `About “${b.title}”`, from: b.title, link: `${drill.base}?${stateQuery(drill.state)}` }).toString()}`}
+                        className="b-rows"
+                        data-tip="Ask your analyst about this number. The view you're looking at goes with the question."
+                      >
+                        <Icon name="chat" /> Ask
+                      </Link>
                     )}
                     {rowsLink && (
                       <Link href={rowsLink} className="b-rows" data-tip="See every row behind this, in Explore, with the same period and filters">

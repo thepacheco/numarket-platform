@@ -103,6 +103,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
           updated={updated}
           pins={{ pinned, action: pinToHome }}
           send={{ slug, people, rows: canExport, action: sendSnapshot }}
+          ask={ctx.can("requests.submit") && ctx.tenant.products.includes("insight")}
           before={
             insights.length > 0 ? (
               <section className="insights" aria-label="What changed">

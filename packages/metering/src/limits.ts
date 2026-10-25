@@ -16,10 +16,8 @@ export type TierLimits = {
   scheduledReports: number | null;
   sources: string;
   users: string;
-  /* hours of dashboard and report changes included each month (null: a dedicated analyst) */
+  /* hours of dashboard and report changes included each month (null: set in the contract) */
   changeHoursPerMonth: number | null;
-  /* how fast numarket answers a request or a question */
-  replyTime: string;
 };
 
 const range = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
@@ -38,7 +36,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     sources: "Up to 3",
     users: "Up to 15",
     changeHoursPerMonth: 2,
-    replyTime: "1 business day",
   },
   operate: {
     name: "Operate",
@@ -53,7 +50,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     sources: "Up to 8",
     users: "Up to 50",
     changeHoursPerMonth: 6,
-    replyTime: "4 business hours",
   },
   command: {
     name: "Command",
@@ -68,7 +64,6 @@ export const TIER_LIMITS: Record<Tier, TierLimits> = {
     sources: "9 or more",
     users: "50 or more",
     changeHoursPerMonth: null,
-    replyTime: "2 hours",
   },
 };
 

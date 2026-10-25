@@ -40,6 +40,8 @@ Client's team ◀── numarket Portal (dashboards, input screens, reports, ale
 
 ## 1. Domains — what to buy and why
 
+> **October 25:** `numarket.app` is registered (to someone else, unless Brandon owns it). The plan is `numarketapp.com`; see [`ACCOUNTS.md`](ACCOUNTS.md) #6. Read `numarket.app` below as "the client domain".
+
 **[DECISION] Buy a separate domain for the app.** Recommended: `numarket.app` (or the closest available). Keep `numarket.us` for the marketing site and email.
 
 Why a separate domain:
@@ -623,6 +625,8 @@ This table is the answer to "where do we give them too much power, and where do 
 
 ## 16. Build phases (for Claude Code)
 
+> **October 25:** the order of work now lives in [`BUILD-PLAN.md`](BUILD-PLAN.md) (Steps 0–10). The phases below stay as technical background.
+
 Each phase ends with working software and passing tests. Do not start a phase until the previous one's acceptance checks pass.
 
 **Phase 0 — Skeleton**
@@ -672,6 +676,8 @@ Enterprise SSO and directory-sync wizards, client-owned domains, `CLIENT_READONL
 ---
 
 ## 17. What Brandon needs to set up (accounts and keys)
+
+> **October 25:** the current, ordered list is [`ACCOUNTS.md`](ACCOUNTS.md). The table below is the original.
 
 Create each under a shared `ops@` or `admin@numarket.us` mailbox, not a personal email, with MFA and a password manager entry.
 

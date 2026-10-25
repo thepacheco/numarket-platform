@@ -11,6 +11,7 @@ const KINDS: { id: RequestKind; name: string; line: string; product: RequestProd
   { id: "app", name: "New app idea", line: "Something built for you. We quote it first.", product: "engineering", placeholder: "What do people do by hand today, and how often? For example: pay applications arrive as PDFs and get approved by email." },
   { id: "issue", name: "Something's wrong", line: "A number looks off, a connection broke, a form misbehaves.", product: "foundation", placeholder: "What did you see, where, and when? Include the job or customer if there is one." },
   { id: "improvement", name: "Improvement", line: "Make something that exists work better.", product: "workspace", placeholder: "What would make it better?" },
+  { id: "question", name: "Ask your analyst", line: "Why did a number move? What does it mean? A plain answer.", product: "insight", placeholder: "What would you like to know? For example: why did gross margin drop in September, and should we worry?" },
 ];
 const PRODUCTS: { id: RequestProduct; name: string }[] = [
   { id: "foundation", name: "Foundation · your data" },
@@ -24,11 +25,14 @@ export default function RequestForm({
   action,
   initial,
   changeHoursLeft,
+  canAsk = false,
 }: {
   action: (prev: ActionResult | null, form: FormData) => Promise<ActionResult>;
   initial: { kind: RequestKind; product?: RequestProduct; title?: string; link?: string; from?: string };
   /* null when the plan has a dedicated analyst instead of an hour allowance */
   changeHoursLeft: number | null;
+  /* questions go to the analyst, so only with Insight Review */
+  canAsk?: boolean;
 }) {
   const [kind, setKind] = useState<RequestKind>(initial.kind);
   const [product, setProduct] = useState<RequestProduct>(initial.product ?? KINDS.find((k) => k.id === initial.kind)!.product);
@@ -50,7 +54,7 @@ export default function RequestForm({
           {initial.link && <input type="hidden" name="link" value={initial.link} />}
           <fieldset className="req-kinds">
             <legend className="label">What kind of request?</legend>
-            {KINDS.map((k) => (
+            {KINDS.filter((k) => k.id !== "question" || canAsk).map((k) => (
               <button key={k.id} type="button" className={`req-kind p-${k.product}`} aria-pressed={kind === k.id} onClick={() => pick(k.id)}>
                 <SolidIcon kind={k.product} size={22} />
                 <span>
@@ -125,6 +129,16 @@ export default function RequestForm({
                   <li>You describe it here.</li>
                   <li>We ask a few questions, then send a fixed quote.</li>
                   <li>Once you approve the quote, you can follow the build on this board.</li>
+                </ol>
+              </div>
+            )}
+            {kind === "question" && (
+              <div className="req-aside">
+                <b>How questions work</b>
+                <ol>
+                  <li>Ask in your own words. If you came from a chart, it&apos;s attached.</li>
+                  <li>Your analyst reads the numbers behind it and answers here, in plain English.</li>
+                  <li>If the answer needs work (a fix, a new chart), it becomes a request on the board.</li>
                 </ol>
               </div>
             )}
