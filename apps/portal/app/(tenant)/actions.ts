@@ -351,6 +351,43 @@ export async function setActionItem(_: ActionResult | null, form: FormData): Pro
   });
 }
 
+/** Remind an action item's owner: a notice on their bell, and an email when email is set up. */
+export async function remindActionItem(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("actions.manage");
+    const reviewId = str(form, "review");
+    const idx = Number(str(form, "idx"));
+    const { listMembers } = await import("@numarket/db/repo/admin");
+    const { notifyUser, setEmailStatus } = await import("@numarket/db/repo/workspace");
+    const { emailConfigured, sendEmail } = await import("@/lib/email");
+    return withTenant(ctx.tenant.id, async (db) => {
+      const item = (await listActionItems(db)).find((a) => a.reviewId === reviewId && a.idx === idx);
+      if (!item) throw new ActionError("That action item doesn't exist.");
+      if (item.status === "done") throw new ActionError("It's already done.");
+      const owner = (await listMembers(db)).find((m) => m.status === "active" && m.name.trim().toLowerCase() === item.owner.trim().toLowerCase());
+      if (!owner) throw new ActionError(`${item.owner} doesn't have a Portal sign-in, so remind them directly.`);
+      const first = owner.name.split(" ")[0];
+      const id = await notifyUser(db, owner.user_id, {
+        key: `remind:${reviewId}:${idx}:${todayIn(ctx.tenant.timezone)}`,
+        title: `Reminder: ${item.title}`,
+        body: `Due ${item.due}. From the ${item.reviewTitle}.${item.doneWhen ? ` Done when: ${item.doneWhen}` : ""} Sent by ${ctx.user.name}.`,
+        link: "/reviews/actions?who=me",
+      });
+      if (!id) return { ok: true, message: `${first} was already reminded today.` };
+      let how = "on their bell";
+      /* the demo's people aren't real, so it never sends email */
+      if (!ctx.tenant.isDemo && emailConfigured()) {
+        const text = `${ctx.user.name} sent a reminder about an action item from your numarket review.\n\n${item.title}\nDue ${item.due}.${item.doneWhen ? `\nDone when: ${item.doneWhen}` : ""}\n\nOpen your action items: https://${meta.host}/reviews/actions?who=me`;
+        const status = await sendEmail({ to: owner.email, subject: `Reminder: ${item.title}`, text, html: text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") });
+        await setEmailStatus(db, [id], status);
+        if (status === "sent") how = "by email and on their bell";
+      }
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "action.remind", target: item.title.slice(0, 120), detail: { owner: item.owner }, ip: meta.ip });
+      return { ok: true, message: `Reminded ${first} ${how}.${ctx.tenant.isDemo ? " (The demo never sends email.)" : ""}` };
+    }, { userId: ctx.user.id });
+  });
+}
+
 /* ---------- Home (each person's own) ---------- */
 
 export async function saveHome(_: ActionResult | null, form: FormData): Promise<ActionResult> {

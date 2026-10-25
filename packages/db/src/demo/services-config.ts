@@ -205,7 +205,8 @@ export function buildServicesReviews(ds: DS, asOf: Date) {
     return { o: rows.reduce((t, r) => t + n(r.opened), 0), c: rows.reduce((t, r) => t + n(r.closed), 0) };
   };
   const cash = (m: string) => n(ds.cash.find((r) => r.month === m)?.balance);
-  const due = (d: number) => `${shortMonth(cur)} ${d}`;
+  /* due dates move with each nightly reset, so the demo always shows one item late, one this week, one later */
+  const dueIn = (days: number) => new Date(asOf.getTime() + days * 86_400_000).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
   const rP = req(P);
   const gmDelta = (gm(L) - gm(P)) * 100;
 
@@ -229,9 +230,9 @@ export function buildServicesReviews(ds: DS, asOf: Date) {
           { title: "Pricing Strategy budget sheet", detail: "The budget hasn't been updated in 12 days while hours post daily, so cost performance there is less reliable until it's refreshed." },
         ],
         recommendations: [
-          { title: "Hold a requirements sign-off session with the Northfield sponsor", detail: "Walk the payments screens line by line and get written sign-off before more build hours go in.", owner: "Elena Park", due: due(9) },
-          { title: `Call ${ar[0].customer} accounts payable`, detail: "Confirm the open invoices are approved and ask for their payment date.", owner: "David Chen", due: due(7) },
-          { title: "Refresh the Pricing Strategy budget sheet", detail: "Update it in the shared Google folder; the next overnight update picks it up.", owner: "Project management office", due: due(8) },
+          { title: "Hold a requirements sign-off session with the Northfield sponsor", detail: "Walk the payments screens line by line and get written sign-off before more build hours go in.", owner: "Elena Park", due: dueIn(3), doneWhen: "Written sign-off on every payments screen.", source: { label: `${worst.name} cost performance ${n(worst.cpi).toFixed(2)}`, link: "/dashboards/projects?page=change-orders" } },
+          { title: `Call ${ar[0].customer} accounts payable`, detail: "Confirm the open invoices are approved and ask for their payment date.", owner: "David Chen", due: dueIn(-2), doneWhen: "A payment date from the client, in writing.", source: { label: `Owed over 60 days: ${money(over60)}`, link: "/dashboards/financials?page=receivables" } },
+          { title: "Refresh the Pricing Strategy budget sheet", detail: "Update it in the shared Google folder; the next overnight update picks it up.", owner: "Project management office", due: dueIn(9), doneWhen: "The budget updated within the last 2 days.", source: { label: "Budget: 12 days since its last update", link: "/health" } },
         ],
         usage: { rows: "58,000 new rows", allowance: "41% of your platform allowance", note: "Steady. No change needed." },
         next: `${monthName(cur)} review: ${monthName(addM(cur, 1))} 4`,

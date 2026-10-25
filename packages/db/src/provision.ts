@@ -194,6 +194,11 @@ async function seedReviews(db: Db, tenantId: string, pack: Pack) {
     const published = new Date(Math.min(Date.now() - 3600_000, new Date(`${r.period}-01T14:00:00Z`).getTime() + 33 * 86_400_000));
     await db.query("insert into reviews (tenant_id, period, title, analyst, published_at, content) values ($1, $2, $3, $4, $5, $6)", [tenantId, r.period, r.title, r.analyst, published, JSON.stringify(r.content)]);
   }
+  /* items from earlier reviews were finished, so the list shows follow-through */
+  const older = await db.query<{ id: string; n: number }>("select id, jsonb_array_length(content->'recommendations')::int as n from reviews order by period desc offset 1");
+  for (const r of older.rows)
+    for (let idx = 0; idx < r.n; idx++)
+      await db.query("insert into action_status (tenant_id, review_id, idx, status, updated_at) values ($1, $2, $3, 'done', now() - interval '20 days') on conflict do nothing", [tenantId, r.id, idx]);
 }
 
 /* Example Engineering apps open with a few records: approvals waiting and
