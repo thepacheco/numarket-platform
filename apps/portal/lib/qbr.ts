@@ -1,4 +1,4 @@
-import { addMonths, monthLabel, type Block, type RangeSel } from "@numarket/blocks";
+import { addMonths, kpiData, monthLabel, visibleRows, type Block, type Datasets, type Format, type KpiBlock, type KpiData, type RangeSel } from "@numarket/blocks";
 import type { Vocab } from "@numarket/db/demo/vocab";
 
 /* The quarterly business review pack: the same building blocks as the
@@ -26,9 +26,27 @@ export function completeQuarters(asOfMonth: string, n = 4): Quarter[] {
   return out;
 }
 
-export function quarterRange(q: Quarter): RangeSel {
-  const prior = quarterOf(addMonths(q.from, -1));
+/* Compare a quarter with the one before, or with the same quarter last year. */
+export type Compare = "quarter" | "year";
+export const compareOf = (v?: string | null): Compare => (v === "year" ? "year" : "quarter");
+export function priorQuarter(q: Quarter, compare: Compare = "quarter"): Quarter {
+  return quarterOf(addMonths(q.from, compare === "year" ? -12 : -1));
+}
+
+export function quarterRange(q: Quarter, compare: Compare = "quarter"): RangeSel {
+  const prior = priorQuarter(q, compare);
   return { key: "custom", current: { from: q.from, to: q.to }, prior: { from: prior.from, to: prior.to }, label: `${q.label} (${monthLabel(q.from, { short: true })}–${monthLabel(q.to, { short: true })})`, compareLabel: `vs ${prior.label}` };
+}
+
+/** The quarter at a glance: each headline number, this quarter against the comparison. */
+export type GlanceRow = KpiData & { title: string; format: Format };
+export function quarterGlance(datasets: Datasets, v: Vocab, q: Quarter, compare: Compare = "quarter"): GlanceRow[] {
+  const r = quarterRange(q, compare);
+  return (qbrBlocks(v).kpis as KpiBlock[]).map((b) => {
+    const rows = visibleRows(datasets, b.dataset, null, { range: r.current });
+    const prior = visibleRows(datasets, b.dataset, null, { range: r.prior });
+    return { title: b.title, format: b.format, ...kpiData(b, rows, prior) };
+  });
 }
 
 /** Twelve months ending with the quarter, for the trend charts. */

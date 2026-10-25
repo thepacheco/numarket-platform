@@ -15,6 +15,8 @@ import { ago, fmtTime, reportVisible, workspace } from "@/lib/data";
 import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 import { navFor } from "@/lib/nav";
+import QbrGlance from "@/components/QbrGlance";
+import { completeQuarters, priorQuarter, quarterGlance } from "@/lib/qbr";
 import { askQuestion } from "../actions";
 
 export const metadata: Metadata = { title: "Home" };
@@ -186,6 +188,19 @@ export default async function Home() {
             </div>
           </section>
         )}
+
+        {has("qbr") && ws.snapshot && !ctx.scope && ctx.can("dashboard.view") && ctx.tenant.products.includes("insight") && (() => {
+          const q = completeQuarters(asOfMonth(ws.snapshot.published_at, tz))[0];
+          return (
+            <section className="card c-12">
+              <div className="panel-h">
+                <h2>The quarter at a glance</h2>
+                <Link href={`/reviews/qbr?q=${q.key}`}>Open the QBR pack</Link>
+              </div>
+              <QbrGlance rows={quarterGlance(ws.snapshot.datasets, v, q)} current={q.label} prior={priorQuarter(q).label} />
+            </section>
+          );
+        })()}
 
         {has("entries") && (
           <section className="card c-6">

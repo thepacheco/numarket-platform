@@ -414,6 +414,17 @@ export async function pinToHome(_: ActionResult | null, form: FormData): Promise
       const cat = catalog(await listDashboards(db), ctx);
       const saved = await getHomeLayout(db, ctx.user.id);
       const layout = saved ? cleanLayout(saved, ctx, cat) : defaultLayout(ctx, cat);
+      /* a whole panel, like the quarter at a glance from the QBR pack */
+      if (id.startsWith("panel:")) {
+        const { PANELS } = await import("@/lib/home");
+        const panel = PANELS.find((p) => `panel:${p.id}` === id);
+        if (!panel || (panel.needs && !ctx.can(panel.needs as never))) throw new ActionError("That can't be pinned.");
+        const on = layout.panels.includes(panel.id);
+        layout.panels = on ? layout.panels.filter((x) => x !== panel.id) : [...layout.panels, panel.id];
+        await saveHomeLayout(db, ctx.user.id, layout);
+        revalidatePath("/");
+        return { ok: true, message: on ? "Removed from Home." : "Pinned to Home." };
+      }
       const kind = cat.kpis.some((w) => w.id === id) ? "kpis" : cat.charts.some((w) => w.id === id) ? "charts" : null;
       if (!kind) throw new ActionError("That can't be pinned.");
       const list = layout[kind];

@@ -15,6 +15,7 @@ export const PANELS = [
   { id: "review", title: "Your analyst's latest review", needs: "actions.view", standard: true },
   { id: "entries", title: "Your entries", needs: "input.submit", standard: false },
   { id: "reports", title: "Status reports", needs: "report.view", standard: false },
+  { id: "qbr", title: "The quarter at a glance (from your QBR pack)", needs: "actions.view", standard: false },
 ] as const;
 
 export function catalog(dashboards: { slug: string; title: string; layout: unknown }[], ctx: TenantContext) {
