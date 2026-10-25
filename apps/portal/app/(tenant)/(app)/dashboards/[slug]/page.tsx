@@ -6,7 +6,7 @@ import { can, isRole } from "@numarket/auth";
 import { withTenant } from "@numarket/db";
 import { listMembers } from "@numarket/db/repo/admin";
 import { vocabFor } from "@numarket/db/demo/vocab";
-import { getDashboard, getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
+import { dashboardForRole, getDashboard, getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
 import AskBox from "@/components/AskBox";
 import AskDrawer from "@/components/AskDrawer";
 import { asOfMonth, dashState, DashboardView, stateQuery, type Params } from "@/components/Dashboard";
@@ -30,7 +30,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
     async (db) => ({ dash: await getDashboard(db, slug), dashboards: await listDashboards(db), saved: await getHomeLayout(db, ctx.user.id), members: await listMembers(db) }),
     { userId: ctx.user.id },
   );
-  if (!dash) notFound();
+  if (!dash || !dashboardForRole(dash, ctx.role)) notFound();
   const layout = dash.layout as DashboardLayout;
   if (ctx.scope && layout.wholeCompany) notFound();
   const ws = await workspace(ctx);
@@ -47,7 +47,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   const kind = layout.wholeCompany ? "financials" : "projects";
   /* who can receive this view: people whose role shows dashboards and whose data scope covers it */
   const people = members
-    .filter((m) => m.status === "active" && m.user_id !== ctx.user.id && isRole(m.role) && can(m.role, "dashboard.view"))
+    .filter((m) => m.status === "active" && m.user_id !== ctx.user.id && isRole(m.role) && can(m.role, "dashboard.view") && dashboardForRole(dash, m.role))
     .filter((m) => !m.scope_values?.length || (!layout.wholeCompany && !!state.job && m.scope_values.includes(state.job)))
     .map((m) => ({ id: m.user_id, label: `${m.name}${m.title ? `, ${m.title}` : ""}` }));
   const insights = ws.snapshot ? insightsFor(kind, datasets, ctx.scope, state.range, v, state.job) : [];

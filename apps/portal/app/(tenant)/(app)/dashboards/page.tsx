@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { DashboardLayout } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
-import { listDashboards } from "@numarket/db/repo/workspace";
+import { dashboardForRole, listDashboards } from "@numarket/db/repo/workspace";
 import Icon from "@/components/Icon";
 import { requireTenant } from "@/lib/guard";
 
@@ -10,7 +10,8 @@ export const metadata: Metadata = { title: "Dashboards" };
 
 export default async function Dashboards() {
   const ctx = await requireTenant("dashboard.view");
-  const list = (await withTenant(ctx.tenant.id, listDashboards)).filter((d) => !(ctx.scope && (d.layout as DashboardLayout).wholeCompany));
+  /* only the dashboards this person's role is set to see, within their data scope */
+  const list = (await withTenant(ctx.tenant.id, listDashboards)).filter((d) => dashboardForRole(d, ctx.role) && !(ctx.scope && (d.layout as DashboardLayout).wholeCompany));
   return (
     <>
       <div className="page-head">

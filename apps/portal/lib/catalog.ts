@@ -1,4 +1,5 @@
 import "server-only";
+import { dashboardForRole } from "@numarket/db/repo/workspace";
 import { blockId, type Block, type DashboardLayout } from "@numarket/blocks";
 import type { TenantContext } from "@numarket/auth";
 
@@ -9,13 +10,15 @@ import type { TenantContext } from "@numarket/auth";
 
 export type CatalogItem = { id: string; title: string; from: string; block: Block; wholeCompany: boolean };
 
-export function blockCatalog(dashboards: { slug: string; title: string; layout: unknown }[], ctx: TenantContext) {
+export function blockCatalog(dashboards: { slug: string; title: string; layout: unknown; roles?: string[] | null }[], ctx: TenantContext) {
   const out: CatalogItem[] = [];
   const seen = new Set<string>();
   if (!ctx.can("dashboard.view") && !ctx.can("report.edit")) return out;
   for (const d of dashboards) {
     const l = d.layout as DashboardLayout;
     if (ctx.scope && l.wholeCompany) continue;
+    /* only dashboards this person's role is set to see */
+    if (!dashboardForRole(d, ctx.role)) continue;
     for (const p of l.pages)
       for (const row of p.rows)
         for (const b of row) {

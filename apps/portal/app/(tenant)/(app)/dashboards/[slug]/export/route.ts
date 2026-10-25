@@ -1,7 +1,7 @@
 import { isDated, statementData, tableRows, visibleRows, type DashboardLayout } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
 import { audit } from "@numarket/db/repo/audit";
-import { getDashboard } from "@numarket/db/repo/workspace";
+import { dashboardForRole, getDashboard } from "@numarket/db/repo/workspace";
 import { asOfMonth, dashState } from "@/components/Dashboard";
 import { workspace } from "@/lib/data";
 import { tenantOrThrow } from "@/lib/guard";
@@ -21,7 +21,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ slug: st
   if (!ctx.policy.exportRoles.includes(ctx.role)) return new Response("Exports are turned off for your role.", { status: 403 });
   const { slug } = await params;
   const dash = await withTenant(ctx.tenant.id, (db) => getDashboard(db, slug));
-  if (!dash) return new Response("Not found", { status: 404 });
+  if (!dash || !dashboardForRole(dash, ctx.role)) return new Response("Not found", { status: 404 });
   const layout = dash.layout as DashboardLayout;
   if (ctx.scope && layout.wholeCompany) return new Response("Not found", { status: 404 });
   const ws = await workspace(ctx);

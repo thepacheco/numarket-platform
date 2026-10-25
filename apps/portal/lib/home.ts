@@ -20,7 +20,7 @@ export const PANELS = [
   { id: "qbr", title: "The quarter at a glance (from your QBR pack)", needs: "actions.view", standard: false },
 ] as const;
 
-export function catalog(dashboards: { slug: string; title: string; layout: unknown }[], ctx: TenantContext) {
+export function catalog(dashboards: { slug: string; title: string; layout: unknown; roles?: string[] | null }[], ctx: TenantContext) {
   const all = ctx.can("dashboard.view") ? blockCatalog(dashboards, ctx) : [];
   const toWidget = (c: CatalogItem): Widget => ({ id: c.id, title: c.title, from: c.from, block: c.block });
   return { kpis: all.filter((c) => c.block.type === "kpi").map(toWidget), charts: all.filter((c) => isChart(c.block)).map(toWidget) };

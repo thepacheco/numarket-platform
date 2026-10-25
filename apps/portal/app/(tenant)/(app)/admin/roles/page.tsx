@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { withTenant } from "@numarket/db";
+import { dashboardForRole, listDashboards } from "@numarket/db/repo/workspace";
+import ActionForm, { Submit } from "@/components/ActionForm";
+import { saveDashboardRoles } from "../../../actions";
 import { can, PERMISSION_GROUPS, ROLES } from "@numarket/auth";
 import { requireTenant } from "@/lib/guard";
 
@@ -16,7 +20,9 @@ const LABEL: Record<string, string> = {
 };
 
 export default async function Roles() {
-  await requireTenant("users.manage");
+  const ctx = await requireTenant("users.manage");
+  const dashboards = await withTenant(ctx.tenant.id, listDashboards, { userId: ctx.user.id });
+  const DASH_ROLES = ROLES.filter((r) => r.id !== "owner" && can(r.id, "dashboard.view"));
   return (
     <>
       <div className="page-head">
@@ -35,6 +41,54 @@ export default async function Roles() {
           </div>
         ))}
       </div>
+      <section className="card" style={{ marginBottom: 16 }}>
+        <h2 style={{ margin: "0 0 4px", fontSize: 17 }}>Dashboards each role sees</h2>
+        <p className="small muted" style={{ margin: "0 0 12px" }}>
+          Owners always see every dashboard. Untick a role to hide a dashboard from it, for example to give viewers only the Financial overview. Data scopes (one job only) still apply on top.
+        </p>
+        <ActionForm action={saveDashboardRoles}>
+          <div className="table-wrap">
+            <table className="t dash-roles">
+              <thead>
+                <tr>
+                  <th scope="col">Dashboard</th>
+                  <th scope="col" style={{ textAlign: "center" }}>
+                    Owner
+                  </th>
+                  {DASH_ROLES.map((r) => (
+                    <th key={r.id} scope="col" style={{ textAlign: "center" }}>
+                      {r.name}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dashboards.map((d) => (
+                  <tr key={d.slug}>
+                    <td>
+                      <b>{d.title}</b>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <input type="checkbox" checked disabled aria-label={`Owner sees ${d.title}`} />
+                    </td>
+                    {DASH_ROLES.map((r) => (
+                      <td key={r.id} style={{ textAlign: "center" }}>
+                        <input type="checkbox" name={`d:${d.slug}`} value={r.id} defaultChecked={dashboardForRole(d, r.id)} aria-label={`${r.name} sees ${d.title}`} disabled={!ctx.can("roles.manage")} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {ctx.can("roles.manage") && (
+            <div className="row" style={{ marginTop: 12 }}>
+              <Submit>Save</Submit>
+            </div>
+          )}
+        </ActionForm>
+      </section>
+
       <div className="card">
         <div className="table-wrap">
           <table className="t">

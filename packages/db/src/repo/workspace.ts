@@ -5,13 +5,19 @@ import type { Db } from "../client";
    tenant of the request. Callers check permissions before calling. */
 
 /* ---------- dashboards ---------- */
-export type DashboardRow = { slug: string; title: string; description: string; layout: unknown };
+/* roles: who sees it (null = every role that can see dashboards; owners always do) */
+export type DashboardRow = { slug: string; title: string; description: string; layout: unknown; roles: string[] | null };
 export async function listDashboards(db: Db) {
-  return (await db.query<DashboardRow>("select slug, title, description, layout from dashboards order by sort, title")).rows;
+  return (await db.query<DashboardRow>("select slug, title, description, layout, roles from dashboards order by sort, title")).rows;
 }
 export async function getDashboard(db: Db, slug: string) {
-  return (await db.query<DashboardRow>("select slug, title, description, layout from dashboards where slug = $1", [slug])).rows[0] ?? null;
+  return (await db.query<DashboardRow>("select slug, title, description, layout, roles from dashboards where slug = $1", [slug])).rows[0] ?? null;
 }
+export async function setDashboardRoles(db: Db, slug: string, roles: string[] | null) {
+  await db.query("update dashboards set roles = $2 where slug = $1", [slug, roles]);
+}
+/** Whether a role sees a dashboard. */
+export const dashboardForRole = (d: { roles?: string[] | null }, role: string) => role === "owner" || !d.roles || d.roles.includes(role);
 
 /* ---------- definitions ---------- */
 export type DefinitionRow = { key: string; name: string; means: string; formula: string; sources: string; owner: string; category: string; updated_at: Date };

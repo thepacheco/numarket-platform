@@ -919,8 +919,9 @@ export async function sendSnapshot(_: ActionResult | null, form: FormData): Prom
     const png = str(form, "png");
     const wantRows = str(form, "rows") === "1";
     return withTenant(ctx.tenant.id, async (db) => {
+      const { dashboardForRole } = await import("@numarket/db/repo/workspace");
       const dash = (await listDashboards(db)).find((d) => d.slug === slug);
-      if (!dash) throw new ActionError("That dashboard doesn't exist.");
+      if (!dash || !dashboardForRole(dash, ctx.role)) throw new ActionError("That dashboard doesn't exist.");
       const layout = dash.layout as import("@numarket/blocks").DashboardLayout;
       if (layout.wholeCompany && ctx.scope) throw new ActionError("You can't send this dashboard.");
       const block = layout.pages.flatMap((p) => p.rows.flat()).find((b) => blockId(b) === id);
@@ -934,7 +935,7 @@ export async function sendSnapshot(_: ActionResult | null, form: FormData): Prom
       if (!who || who.user_id === ctx.user.id) return { ok: false, message: "Pick someone to send it to.", errors: { to: "Pick someone." } };
       const role = who.role as import("@numarket/auth").Role;
       const first = who.name.split(" ")[0];
-      if (!can(role, "dashboard.view")) throw new ActionError(`${first} can't see dashboards with their role.`);
+      if (!can(role, "dashboard.view") || !dashboardForRole(dash, role)) throw new ActionError(`${first} can't see this dashboard with their role.`);
       /* never send more than the person may see */
       if (who.scope_values?.length) {
         if (layout.wholeCompany) throw new ActionError(`${first} sees only some ${jobs.length ? "jobs" : "data"}, so company numbers can't be sent to them.`);
@@ -979,6 +980,30 @@ export async function sendSnapshot(_: ActionResult | null, form: FormData): Prom
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "snapshot.send", target: block.title.slice(0, 120), detail: { to: who.user_id, view: label, rows: csv?.rows ?? 0, picture: !!picture }, ip: meta.ip });
       const att = [picture ? "the picture" : null, csv ? `${csv.rows} rows` : null].filter(Boolean).join(" and ");
       return { ok: true, message: `Sent to ${first} ${how}${att ? `, with ${att}` : ""}.${ctx.tenant.isDemo ? " (The demo never sends email.)" : ""}` };
+    }, { userId: ctx.user.id });
+  });
+}
+
+
+/* ---------- which dashboards each role sees ---------- */
+
+export async function saveDashboardRoles(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("roles.manage");
+    assertNotDemo(ctx);
+    const { setDashboardRoles } = await import("@numarket/db/repo/workspace");
+    const ROLES_WITH_DASHBOARDS = ["admin", "editor", "viewer"];
+    return withTenant(ctx.tenant.id, async (db) => {
+      const changes: Record<string, string[] | null> = {};
+      for (const d of await listDashboards(db)) {
+        const picked = form.getAll(`d:${d.slug}`).map(String).filter((r) => ROLES_WITH_DASHBOARDS.includes(r));
+        const roles = picked.length === ROLES_WITH_DASHBOARDS.length ? null : picked;
+        await setDashboardRoles(db, d.slug, roles);
+        changes[d.slug] = roles;
+      }
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "dashboards.roles", target: "dashboards", detail: changes, ip: meta.ip });
+      revalidatePath("/", "layout");
+      return { ok: true, message: "Saved. People see the change the next time they open a page." };
     }, { userId: ctx.user.id });
   });
 }
