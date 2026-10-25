@@ -117,11 +117,6 @@ export default async function Requests({ searchParams }: { searchParams: Promise
             </>
           )}
         </div>
-        <div className="req-stat">
-          <small>Reply time</small>
-          <b>{limits.replyTime}</b>
-          <span className="small muted">From your analyst, on every request.</span>
-        </div>
       </div>
 
       <div className="req-filters">

@@ -5,7 +5,6 @@ import { fmt } from "@numarket/blocks";
 import { withTenant } from "@numarket/db";
 import { canSeeRequest, getRequest, KIND_LABEL, REQUEST_STATUSES, requestUpdates, STATUS_LABEL } from "@numarket/db/repo/requests";
 import { listReviews } from "@numarket/db/repo/workspace";
-import { TIER_LIMITS } from "@numarket/metering";
 import ActionForm, { Submit } from "@/components/ActionForm";
 import SketchPreview from "@/components/SketchPreview";
 import SolidIcon from "@/components/solids/SolidIcon";
@@ -167,10 +166,6 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
                 </dd>
               </div>
             )}
-            <div>
-              <dt>Reply time</dt>
-              <dd>{TIER_LIMITS[ctx.tenant.tier].replyTime}</dd>
-            </div>
             <div>
               <dt>Last update</dt>
               <dd>{fmtDateTime(r.updated_at, tz)}</dd>

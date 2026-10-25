@@ -9,7 +9,6 @@ import { latestSnapshot, manualRefreshesToday, publishSimulated, simulationAllow
 import { addSource, getHomeLayout, createReport, listActionItems, setActionStatus, deletePendingEntry, deleteReport, getFlag, getReport, getScreen, insertEntry, listDashboards, publishReport, resolveFlag, saveDraft, saveHomeLayout, suggestDefinition, updateReportDesign, validateEntry, type ReportLayout } from "@numarket/db/repo/workspace";
 import { REPORT_TEMPLATES } from "@numarket/db/demo/config";
 import { addRequestUpdate, canSeeRequest, getRequest, insertRequest, REQUEST_KINDS, REQUEST_PRODUCTS, type RequestKind, type RequestProduct, type SketchBlock } from "@numarket/db/repo/requests";
-import { TIER_LIMITS } from "@numarket/metering";
 import { companyDatasets, toLayout } from "@/lib/reportDesign";
 import { updateNowLimit } from "@numarket/metering";
 import { parseHex } from "@numarket/ui";
@@ -856,8 +855,8 @@ export async function createRequestAction(_: ActionResult | null, form: FormData
     return withTenant(ctx.tenant.id, async (db) => {
       const id = await insertRequest(db, { kind, product, title, detail, priority, link, sketch: kind === "change" && sketch.length ? sketch : null, userId: ctx.user.id });
       await addRequestUpdate(db, id, { author: ctx.user.name, userId: ctx.user.id, body: detail || title, status: "submitted" });
-      /* an automatic receipt, so people know it landed and when to expect a reply */
-      await addRequestUpdate(db, id, { author: "numarket", userId: null, body: `Received. Your analyst replies within ${TIER_LIMITS[ctx.tenant.tier].replyTime}.` });
+      /* an automatic receipt, so people know it landed and where the reply will be */
+      await addRequestUpdate(db, id, { author: "numarket", userId: null, body: "Received. Your analyst will reply here." });
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "request.create", target: title.slice(0, 120), detail: { kind, product }, ip: meta.ip });
       revalidatePath("/requests", "layout");
       return { ok: true, message: kind === "question" ? "Sent to your analyst. The answer will appear here." : "Added to the board. Your analyst will reply here.", redirect: `/requests/${id}` };

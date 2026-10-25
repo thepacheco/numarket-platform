@@ -100,7 +100,7 @@ const CONSTRUCTION: SampleRequest[] = [
     priority: "high",
     updates: [
       { by: "dana.reyes@summitbuilders.example", daysAgo: 0, body: "Data health says ADP needs reconnecting. Who does that?", status: "submitted" },
-      { by: null, daysAgo: 0, body: "Received. Your analyst replies within 4 business hours." },
+      { by: null, daysAgo: 0, body: "Received. Your analyst will reply here." },
     ],
   },
   {
@@ -174,7 +174,7 @@ const CONSTRUCTION_QUESTIONS: SampleRequest[] = [
     link: "/dashboards/projects?job=114",
     updates: [
       { by: "marcus.lee@summitbuilders.example", daysAgo: 0, body: "Cost performance is 0.94. Is that trending up since we started the weekly RFI review?", status: "submitted" },
-      { by: null, daysAgo: 0, body: "Received. Your analyst replies within 4 business hours." },
+      { by: null, daysAgo: 0, body: "Received. Your analyst will reply here." },
     ],
   },
 ];

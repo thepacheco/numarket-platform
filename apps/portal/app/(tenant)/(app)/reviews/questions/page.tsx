@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 import { withTenant } from "@numarket/db";
 import { canSeeRequest, latestAnswers, listRequests } from "@numarket/db/repo/requests";
 import { listReviews } from "@numarket/db/repo/workspace";
-import { TIER_LIMITS } from "@numarket/metering";
 import HubNav from "@/components/HubNav";
 import Icon from "@/components/Icon";
 import { ago } from "@/lib/data";
@@ -31,7 +30,6 @@ export default async function Questions() {
   );
   const waiting = rows.filter((r) => r.status !== "done");
   const answered = rows.filter((r) => r.status === "done");
-  const reply = TIER_LIMITS[ctx.tenant.tier].replyTime;
   const name = analyst ?? "Your analyst";
 
   return (
@@ -42,7 +40,7 @@ export default async function Questions() {
           <p className="eyebrow">Insight Review</p>
           <h1>Questions</h1>
           <p>
-            Ask why a number moved, or what to do about it. {name} answers in plain words within {reply}, and links the numbers behind the answer.
+            Ask why a number moved, or what to do about it. {name} answers here in plain words and links the numbers behind the answer.
           </p>
         </div>
         {ctx.can("requests.submit") && (
@@ -70,7 +68,7 @@ export default async function Questions() {
                   <b>{r.title}</b>
                   {r.detail && <p>{r.detail}</p>}
                   <span className="small muted">
-                    {r.by_name ?? "Someone"} asked {ago(r.created_at)} · answer within {reply}
+                    {r.by_name ?? "Someone"} asked {ago(r.created_at)}
                   </span>
                 </Link>
               </li>
