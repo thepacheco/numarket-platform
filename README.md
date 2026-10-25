@@ -11,9 +11,11 @@ each client's private data.
 | Production (demo) | https://app.numarket.us (Summit Builders, fictional sample data) |
 | Hosting | Vercel project `numarket-portal`, Root Directory `apps/portal`, region `iad1` |
 | Database | Neon Postgres (added through Vercel → Storage) |
-| Status | Stage A: the Portal and the sales demo. Real client data needs Stage B. See [`docs/stage-a.md`](docs/stage-a.md) |
-| The plan to grade A | [`docs/production-plan.md`](docs/production-plan.md) |
-| What's needed to sell | [`docs/selling-checklist.md`](docs/selling-checklist.md) |
+| **Start here** | [`docs/README.md`](docs/README.md): the map of every company document (what's real, accounts to create, the build plan, pricing, operations) |
+| Status | The Portal and the sales demo run on sample data. Real client data needs [`docs/BUILD-PLAN.md`](docs/BUILD-PLAN.md) Steps 1–9 |
+| What to build next | [`docs/BUILD-PLAN.md`](docs/BUILD-PLAN.md) |
+| Accounts and keys to create | [`docs/ACCOUNTS.md`](docs/ACCOUNTS.md) |
+| What's needed to sell | [`docs/operations/selling-checklist.md`](docs/operations/selling-checklist.md) |
 | Running the business (go-live steps, addresses, accounts, SOPs) | [`docs/operations/`](docs/operations/README.md) |
 | Full product spec | [`docs/platform-build-spec.md`](docs/platform-build-spec.md) |
 

@@ -1,7 +1,7 @@
 # What you need to sell numarket
 
 **As of October 4, 2026.** Three lists, in the order you need them. The
-technical side is in `docs/production-plan.md`.
+technical side is in `docs/BUILD-PLAN.md`; the accounts are in `docs/ACCOUNTS.md`.
 
 - **A. To start selling now:** demos and pilot conversations. The demo is enough.
 - **B. Before a client signs or sends real data:** contracts, insurance, security.

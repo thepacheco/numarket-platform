@@ -1,8 +1,10 @@
 # numarket: what we sell, who does what, and whether the prices work
 
-**Version 3 · October 24, 2026 · Owner: Brandon.** Internal. Written to settle
-the product lines for both the website and the Portal. Pass this file to any
-chat or person working on either; they should treat it as the source of truth.
+**Version 3.1 · October 25, 2026 · Owner: Brandon.** Internal. The source of
+truth for what we sell and what it costs, for both the website and the Portal.
+This is the only copy (the website repo used to hold a second one). The live
+prices the website shows come from `numarket-website/content/tiers.ts`; keep
+the two in step.
 Sections marked **[DECISION]** need Brandon's yes before anything public changes.
 
 ---
@@ -51,7 +53,9 @@ this way, so what a client sees matches what they pay for.
 ### Foundation: your data
 **Behind the scenes:** read-only connections to each source (the client clicks
 "Allow"), cleaning and matching rules, checks on every update, the client's own
-private Snowflake database, backups, and the exit package.
+private Snowflake database, backups, and the exit package. If the client is
+replacing a system, moving its history is Foundation work, priced into the
+setup quote (decided October 2026; it used to be listed under Engineering).
 
 **What the client gets in the Portal:**
 - **Explore**: look through any of their data. Start from a view (open RFIs,
@@ -145,7 +149,7 @@ Foundation + Workspace.
 ### Engineering: built for you
 Custom apps and automations for one client: paper-to-digital intake (scan a
 form, it becomes data), estimate builders, approval workflows, write-backs into
-their systems, migrations off old software, and later things like meeting
+their systems, and later things like meeting
 notes. Quoted as a project, then optional support.
 
 ---
@@ -195,8 +199,9 @@ account.
 
 ## 5. Do the prices work? (the honest math)
 
-**Current prices (website):** Small (Insight plan) $7,500 setup + $2,500/month.
-Mid (Operate) $15,000 + $4,000/month ($63,000 in year one). Large (Command) from
+**Prices before October 24 (kept for the math below; today's prices are in the
+table under "Three fixes"):** Small $7,500 setup + $2,500/month.
+Mid $15,000 + $4,000/month ($63,000 in year one). Large from
 $40,000 + $10,000/month. Engineering from $5,000 or $175/hour.
 
 **What a delivery person costs:** an analyst at $110,000 salary costs about
@@ -244,12 +249,20 @@ Brandon; share it from its page).
 |---|---|---|
 | Foundation setup, Small / Mid | $6,000 / $12,000 | **$7,000 / $14,000** |
 | Foundation monthly, Small / Mid | $1,100 / $1,900 | **$1,250 / $2,500** |
-| Workspace setup, Small / Mid | $2,500 / $5,000 | **$3,000 / $6,000** |
-| Workspace monthly, Small / Mid | $850 / $1,300 | **$850 / $1,400** |
+| Workspace setup, Small / Mid / Large | $2,500 / $5,000 | **$2,500 / $5,000 / from $10,000** (Oct 25) |
+| Workspace monthly, Small / Mid / Large | $850 / $1,300 | **$750 / $1,250 / from $3,000** (Oct 25) |
 | Change hours included, Small / Mid | 4 / 10 | **2 / 6**, extra $175/h in blocks of 5 |
-| Insight Review monthly, Small / Mid / Large | $850 / $1,300 / from $3,000 | **$1,250 / $2,500 / from $5,000** |
-| Plan (all three, about 10% off), Small / Mid / Large | $2,500 / $4,000 / from $10,000 | **$3,000 / $5,750 / from $12,000** |
-| Plan setup, Small / Mid / Large | $7,500 / $15,000 / from $40,000 | **$9,500 / $19,000 / from $40,000** |
+| Insight Review monthly, Small / Mid / Large | $850 / $1,300 / from $3,000 | **$1,000 / $2,000 / from $4,000** (Oct 25) |
+| All three products, monthly, Small / Mid / Large | $2,500 / $4,000 / from $10,000 | **$3,000 / $5,750 / from $12,000** |
+| All three products, setup, Small / Mid / Large | $7,500 / $15,000 / from $40,000 | **$9,500 / $19,000 / from $40,000** |
+
+**October 25: no bundle discount.** The price for all three products is exactly
+the sum of the product prices. The totals didn't change; Workspace and Insight
+Review were lowered so they add up. Small: $7,000 + $2,500 + $0 setup =
+$9,500; $1,250 + $750 + $1,000 monthly = $3,000. Mid: $14,000 + $5,000 =
+$19,000; $2,500 + $1,250 + $2,000 = $5,750. Large: from $30,000 + $10,000 =
+$40,000; from $5,000 + $3,000 + $4,000 = $12,000. The website computes each
+total from the product prices (`content/tiers.ts`), so they can't drift apart.
 
 **What the usage model found** (vendor prices checked October 24, 2026):
 - **People are most of the cost** (75–90% of a client). Prices start from hours.
@@ -264,7 +277,7 @@ published price for everything that grows: extra source $150/mo; custom source
 +$300/mo; extra 25M rows $200/mo; hourly updates on Small $300/mo; extra
 questions $40 per 100; extra change hours $175; read-only BI login $150/mo
 (25 credits included, then cost + 15%); enterprise SSO $250/mo per connection;
-HIPAA +$500 / +$800; platform usage over the allowance at cost + 15%, warned at
+healthcare (HIPAA) by request, quoted (October 25); platform usage over the allowance at cost + 15%, warned at
 70% and 85%.
 
 **Margins at target hours (from the calculator):** Small typical 62%; Small with
@@ -294,6 +307,26 @@ targeting 60%+ margin.
 ---
 
 ## 6. What changes where
+
+**Website, October 25 (Brandon's review):**
+- **Plans are named by size only:** Small, Mid, Large, "all three products".
+  The names Insight / Operate / Command are retired (the "Insight" plan was
+  confused with the Insight Review product).
+- **The price math is shown line by line,** and the total is exactly the sum
+  of the products (no bundle discount; see §5 for the numbers).
+- **Healthcare (HIPAA) and "your own cloud" are by request,** reviewed first,
+  then quoted. No published HIPAA surcharge.
+- **No response-time promises anywhere** (no "reply within 1 business day",
+  no per-plan response targets, no "answers in two minutes"). Support hours
+  are business hours, Eastern Time. Any service level goes in the contract
+  only, once it can be staffed.
+- **Term is 12 months, then month to month** (Large 12 to 36). "Leave any
+  time" is gone; the line is "If you leave, your data goes with you."
+- **No "Most popular", no "unlimited",** no Microsoft/Google sign-in lines in
+  marketing copy, no "made-up company / not a real client" in estimates.
+- **Who does what is explicit:** Workspace = we build and change the screens
+  (change hours); Insight Review = a person reads the numbers and follows up;
+  Engineering = software that does work beyond reporting.
 
 **Website (for the website chat):**
 - **The product lines changed (v2, October 24).** Use these, word for word where possible:

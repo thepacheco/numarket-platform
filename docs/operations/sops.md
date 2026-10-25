@@ -100,7 +100,7 @@ Before: open the sign-in page in a fresh window. The demo resets nightly; if a
 previous visitor changed something, it's back by morning. Never show a
 Snowflake or Cortex screen.
 
-The script is in `../selling-checklist.md` §C (10 steps: Dana's Home →
+The script is in `selling-checklist.md` §C (10 steps: Dana's Home →
 Receivables → Route 9 over budget with a definition → Flags → weekly report
 PDF → design a report → Marcus sees only his job → Luis on a phone → Ask Your
 Data → Data tables). Say plainly that the company is fictional and that their

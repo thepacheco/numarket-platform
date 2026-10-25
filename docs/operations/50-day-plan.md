@@ -66,7 +66,7 @@ Selling starts on Day 1. It does not wait for the build.
 - [ ] Ask an attorney for a quote on the contract set (MSA, order form, DPA, pilot agreement, privacy policy): roughly $2,000–5,000.
 - [ ] Ask an insurance broker for E&O + cyber quotes.
 - [ ] Apply: **Snowflake Partner Network**, **Intuit Developer** (start the production review now; it takes weeks), **Procore Developer**.
-- [ ] Practice the 15-minute demo three times (script in `../selling-checklist.md` §C), out loud.
+- [ ] Practice the 15-minute demo three times (script in `selling-checklist.md` §C), out loud.
 
 **Build (Claude Code)**
 - [ ] Both sites live and connected; uptime monitor; error alerts (Sentry, needs a free account from you).

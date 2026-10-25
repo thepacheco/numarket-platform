@@ -1,8 +1,8 @@
-# Operating numarket: start here
+# Operating numarket: go-live, addresses, and the weekly rhythm
 
-**As of October 10, 2026.** Owner: Brandon. Internal. Don't share outside numarket.
+**As of October 10, 2026 (links updated October 25).** Owner: Brandon. Internal. Don't share outside numarket.
 
-**New on October 25:** `docs/start-here.md` in the website repo: what's real today, every promise the website makes and its status, and the go-live order.
+**Start at [`../README.md`](../README.md)** (the map of every document). What's real today and every website promise: [`../START-HERE.md`](../START-HERE.md). Accounts to create: [`../ACCOUNTS.md`](../ACCOUNTS.md).
 
 **Just back, or starting fresh? Open [`50-day-plan.md`](50-day-plan.md) first:** today's
 checklist and the week-by-week path to the first client.
@@ -10,12 +10,14 @@ checklist and the week-by-week path to the first client.
 This is the one page for running the business: what to switch on, where
 everything lives, which accounts you need, and the weekly rhythm. The
 step-by-step procedures are in [`sops.md`](sops.md). The build plan is in
-[`../production-plan.md`](../production-plan.md); the sales kit and contracts
-list are in [`../selling-checklist.md`](../selling-checklist.md).
+[`../BUILD-PLAN.md`](../BUILD-PLAN.md); the sales kit and contracts
+list are in [`selling-checklist.md`](selling-checklist.md).
 
 ---
 
 ## 1. Where things stand today (checked October 10; unchanged on October 23)
+
+> **October 25:** not rechecked (the session couldn't reach the live sites). Since October 23 the Vercel project `numarket-platform` exists and builds every pull request, and Portal PR #1 was merged. Confirm numarket.us and app.numarket.us in a browser and update this table.
 
 | What | Status | What it means |
 |---|---|---|
@@ -116,49 +118,7 @@ list are in [`../selling-checklist.md`](../selling-checklist.md).
 
 ## 4. Accounts
 
-Create every account under **admin@numarket.us**, with MFA, saved in the
-password manager. Costs are estimates; check when signing up.
-
-### Now: to sell (this week)
-| Account | Why | Cost |
-|---|---|---|
-| Vercel **Pro** | Hosts the website and the Portal | about $20/month per member |
-| Neon (through Vercel) | Portal database | free to start |
-| IONOS | DNS and email (have it) | have it |
-| Google account for the lead Sheet and Apps Script (have it) | Lead capture | free |
-| Calendly (have it) | Readiness Check bookings | free or about $10/month |
-| Password manager | Every login, shared later with staff | about $3–8/month |
-| Uptime monitor | Alerts if a site goes down | free tier |
-| LinkedIn company page, Google Business Profile, Search Console | Being found | free |
-| **CRM** | Track every lead from first touch to signed. Start with the Google Sheet; move to **HubSpot Free** at about 20 open leads. | free |
-| E-signature (Dropbox Sign, DocuSign, or PandaDoc) | Sign proposals, MSAs, order forms | about $15–25/month |
-
-### Before the first client signs or sends data
-| Account | Why | Cost |
-|---|---|---|
-| Business bank account | Keep client money separate | usually free |
-| QuickBooks Online (numarket's own books) | Your own clean numbers; invoicing | about $35+/month |
-| Stripe | Card/ACH payments on invoices | per transaction |
-| Insurance broker | Professional liability (E&O) and cyber | roughly $1,500–4,000/year |
-| Attorney | MSA, order form, DPA, privacy policy, pilot agreement | roughly $2,000–5,000 one time |
-| Sentry | Error alerts from the Portal | free, then about $26/month |
-| WorkOS | Real sign-in, MFA, SSO for clients | free for regular sign-ins at this size |
-| Postmark or Resend | Invitations, alerts, report emails from the Portal | about $15–20/month |
-| `numarket.app` domain | Client addresses | about $15–20/year |
-| AWS | Worker, secrets, fixed IP (Stage B) | about $50–150/month |
-| Snowflake organization + **Partner Network** application | Each client's private database | per client, within the plan's allowance |
-| Intuit Developer (QuickBooks), Procore Developer | Official connectors. Intuit's production review takes weeks: apply early. | free |
-| Microsoft Entra app, Google Cloud project | "Sign in with Microsoft/Google", SharePoint and Drive sync | free |
-
-### To scale (3+ clients)
-| Account | Why |
-|---|---|
-| Help desk (Help Scout, Zendesk, or a shared inbox) | support@ tickets with response times you can measure |
-| Project tracker (Linear, Asana, or Notion) | One board per client onboarding (SOP-05) and a change-request queue (SOP-10) |
-| Meeting notes (Fireflies or similar) | Readiness Checks and reviews recorded and summarized, with consent |
-| Gusto | Payroll and contractors when you add people |
-| SOC 2 readiness tool (Vanta, Drata, Secureframe) | When clients' IT teams start asking for it |
-| Status page service | When the website's /status isn't enough |
+Moved to one list: [`../ACCOUNTS.md`](../ACCOUNTS.md). It has every account, in order, with what it's for, what it costs, and what to hand Claude Code.
 
 ---
 
@@ -185,7 +145,7 @@ password manager. Costs are estimates; check when signing up.
 | Hours per client per month, by size | **Your margin.** Compare with the price. | Small: under 10 |
 | Snowflake cost vs. allowance, per client | Cost control | under 80% |
 | Open flags older than 3 days | Data quality | 0 |
-| First response to support | Service | within 1 business day (the website promise) |
+| First response to support | Service | track it (the website makes no public promise) |
 | Monthly recurring revenue | The business | — |
 
 ---
