@@ -261,7 +261,9 @@ export async function setActionStatus(db: Db, reviewId: string, idx: number, sta
 }
 
 /* ---------- Home layout (per person) ---------- */
-export type HomeLayout = { kpis: string[]; charts: string[]; panels: string[] };
+/* seen: the panels this person has been offered, so a new standard panel
+   appears once and stays off if they remove it */
+export type HomeLayout = { kpis: string[]; charts: string[]; panels: string[]; seen?: string[] };
 export async function getHomeLayout(db: Db, userId: string) {
   return (await db.query<{ layout: HomeLayout }>("select layout from home_layouts where user_id = $1", [userId])).rows[0]?.layout ?? null;
 }

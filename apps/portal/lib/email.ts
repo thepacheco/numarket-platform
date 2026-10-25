@@ -9,7 +9,8 @@ import type { Firing, weeklySummary } from "./alerts";
 
 export const emailConfigured = () => !!(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 
-export type Email = { to: string; subject: string; html: string; text: string };
+/* attachments: base64 content, like a chart picture or the rows as a CSV */
+export type Email = { to: string; subject: string; html: string; text: string; attachments?: { filename: string; content: string }[] };
 export type Brand = { name: string; color: string; url: string };
 
 export async function sendEmail(e: Email): Promise<"sent" | "failed" | "not_configured"> {
@@ -18,7 +19,7 @@ export async function sendEmail(e: Email): Promise<"sent" | "failed" | "not_conf
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [e.to], subject: e.subject, html: e.html, text: e.text }),
+      body: JSON.stringify({ from: process.env.EMAIL_FROM, to: [e.to], subject: e.subject, html: e.html, text: e.text, ...(e.attachments?.length ? { attachments: e.attachments } : {}) }),
     });
     return r.ok ? "sent" : "failed";
   } catch {
@@ -69,4 +70,15 @@ ${rows}</table><div style="margin-top:18px">${btn(`${b.url}/dashboards/projects`
   const html = shell(b, `Your ${v.jobs} this week`, table, `Numbers as of ${esc(updated)}. You get this every Monday because you set it up: <a href="${esc(b.url)}/alerts" style="color:#22577a">change or turn it off</a>.`);
   const text = `${s.headline}\n\n` + s.jobs.map((j) => `${j.name}: ${fmt(j.pct, "pct")} complete, spent ${fmt(j.actual, "money")} of ${fmt(j.budget, "money")}, ${j.over > 0 ? `${fmt(j.over, "money")} over` : "on budget"}, ${j.rfis} ${v.rfis} open`).join("\n") + `\n\n${b.url}/dashboards/projects`;
   return { subject, html, text };
+}
+
+/** A chart someone sent from a dashboard, with a note, a link to the same view, and attachments. */
+export function snapshotEmail(b: Brand, s: { from: string; title: string; note: string; view: string; link: string; picture: boolean; rows: number | null }) {
+  const bits = [s.picture ? "a picture of the chart" : null, s.rows !== null ? `the ${s.rows} rows behind it (CSV)` : null].filter(Boolean).join(" and ");
+  const inner = `${s.note ? `<p style="margin:0 0 12px;padding:12px 14px;background:#f4f6f9;border-radius:10px">${esc(s.note)}</p>` : ""}
+<p style="margin:0 0 6px"><b>${esc(s.title)}</b>${s.view ? ` · ${esc(s.view)}` : ""}</p>
+${bits ? `<p style="margin:0 0 16px;color:#5b6b78;font-size:14px">Attached: ${esc(bits)}.</p>` : ""}
+${btn(s.link, "Open it in the Portal")}`;
+  const text = `${s.from} sent you ${s.title}${s.view ? ` (${s.view})` : ""}.\n${s.note ? `\n"${s.note}"\n` : ""}${bits ? `\nAttached: ${bits}.\n` : ""}\nOpen it: ${s.link}`;
+  return { subject: `${s.from} sent you: ${s.title}`, html: shell(b, `${s.from} sent you a chart`, inner, "You can see it because you have access to this workspace."), text };
 }

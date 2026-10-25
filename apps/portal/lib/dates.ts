@@ -31,3 +31,9 @@ export function daysFromToday(d: Date, tz: string) {
 export function monthStartIn(tz: string) {
   return new Date(`${todayIn(tz).slice(0, 7)}-01T00:00:00Z`);
 }
+
+/** The month the latest snapshot describes, like "2026-10". */
+export function asOfMonth(publishedAt: Date | string | undefined, tz: string) {
+  const d = publishedAt ? new Date(publishedAt) : new Date();
+  return d.toLocaleDateString("en-CA", { timeZone: tz, year: "numeric", month: "2-digit" }).slice(0, 7);
+}

@@ -169,7 +169,7 @@ export async function askQuestion(prev: AskState | null, form: FormData): Promis
     const question = str(form, "q").slice(0, 300);
     if (question.length < 3) return { items, error: "Type a question first." };
     const { answer } = await import("@/lib/ask");
-    const { asOfMonth } = await import("@/components/Dashboard");
+    const { asOfMonth } = await import("@/lib/dates");
     const { vocabFor } = await import("@numarket/db/demo/vocab");
     const { TIER_LIMITS } = await import("@numarket/metering");
     /* a monthly allowance keeps the cost of questions predictable (the shared demo is exempt) */
@@ -400,7 +400,9 @@ export async function saveHome(_: ActionResult | null, form: FormData): Promise<
       const { pinBase } = await import("@/lib/pinView");
       const saved = await getHomeLayout(db, ctx.user.id);
       const keep = (picked: string[], had: string[] = []) => picked.map((id) => had.find((x) => pinBase(x) === id) ?? id);
-      const layout = cleanLayout({ kpis: keep(form.getAll("kpi").map(String), saved?.kpis), charts: keep(form.getAll("chart").map(String), saved?.charts), panels: form.getAll("panel").map(String) }, ctx, cat);
+      const { PANELS } = await import("@/lib/home");
+      /* everything was on offer in Customize, so nothing new gets added back */
+      const layout = cleanLayout({ kpis: keep(form.getAll("kpi").map(String), saved?.kpis), charts: keep(form.getAll("chart").map(String), saved?.charts), panels: form.getAll("panel").map(String), seen: PANELS.map((x) => x.id as string) }, ctx, cat);
       await saveHomeLayout(db, ctx.user.id, layout);
       revalidatePath("/");
       return { ok: true, message: "Saved. Opening your Home page…", redirect: "/" };
@@ -798,7 +800,7 @@ export async function addViewAlert(_: ActionResult | null, form: FormData): Prom
     for (const k of VIEW_KEYS) if (raw.get(k)) q.set(k, raw.get(k)!.slice(0, k === "w" ? 300 : 60));
     const { runState, isNumeric } = await import("@/lib/explore");
     const { viewBaseline } = await import("@/lib/alerts");
-    const { asOfMonth } = await import("@/components/Dashboard");
+    const { asOfMonth } = await import("@/lib/dates");
     const ws = await workspace(ctx);
     if (!ws.snapshot) throw new ActionError("Your data hasn't had its first update yet.");
     return withTenant(ctx.tenant.id, async (db) => {
@@ -888,6 +890,95 @@ export async function requestUpdateAction(_: ActionResult | null, form: FormData
       await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "request.comment", target: r.title.slice(0, 120), detail: {}, ip: meta.ip });
       revalidatePath("/requests", "layout");
       return { ok: true, message: "Added. Your analyst will see it." };
+    }, { userId: ctx.user.id });
+  });
+}
+
+
+/* ---------- send a snapshot of a chart to someone on the team ---------- */
+
+/** Send a chart (as you see it) to a person in this workspace: on their bell,
+ *  and by email with the picture and the rows attached when email is set up.
+ *  Only to people who may see the same numbers. */
+export async function sendSnapshot(_: ActionResult | null, form: FormData): Promise<ActionResult> {
+  return run(async (): Promise<ActionResult> => {
+    const { ctx, meta } = await tenantOrThrow("dashboard.view");
+    const { blockId, isDated, resolveRange, visibleRows } = await import("@numarket/blocks");
+    const { can } = await import("@numarket/auth");
+    const { listMembers } = await import("@numarket/db/repo/admin");
+    const { notifyUser, setEmailStatus } = await import("@numarket/db/repo/workspace");
+    const { parsePinView, pinViewLabel } = await import("@/lib/pinView");
+    const { emailConfigured, sendEmail, snapshotEmail } = await import("@/lib/email");
+    const { csvLine } = await import("@/lib/csv");
+    const { asOfMonth } = await import("@/lib/dates");
+    const { randomUUID } = await import("node:crypto");
+    const slug = str(form, "slug");
+    const id = str(form, "block");
+    const to = str(form, "to");
+    const note = str(form, "note").slice(0, 500);
+    const png = str(form, "png");
+    const wantRows = str(form, "rows") === "1";
+    return withTenant(ctx.tenant.id, async (db) => {
+      const dash = (await listDashboards(db)).find((d) => d.slug === slug);
+      if (!dash) throw new ActionError("That dashboard doesn't exist.");
+      const layout = dash.layout as import("@numarket/blocks").DashboardLayout;
+      if (layout.wholeCompany && ctx.scope) throw new ActionError("You can't send this dashboard.");
+      const block = layout.pages.flatMap((p) => p.rows.flat()).find((b) => blockId(b) === id);
+      if (!block) throw new ActionError("That chart isn't on this dashboard any more.");
+      const snap = await latestSnapshot(db);
+      if (!snap) throw new ActionError("No data has been published yet.");
+      const jobs = jobsInScope(snap.datasets, ctx);
+      const view = parsePinView(str(form, "view")) ?? {};
+      if (view.job && !jobs.some((j) => j.code === view.job)) delete view.job;
+      const who = (await listMembers(db)).find((m) => m.user_id === to && m.status === "active");
+      if (!who || who.user_id === ctx.user.id) return { ok: false, message: "Pick someone to send it to.", errors: { to: "Pick someone." } };
+      const role = who.role as import("@numarket/auth").Role;
+      const first = who.name.split(" ")[0];
+      if (!can(role, "dashboard.view")) throw new ActionError(`${first} can't see dashboards with their role.`);
+      /* never send more than the person may see */
+      if (who.scope_values?.length) {
+        if (layout.wholeCompany) throw new ActionError(`${first} sees only some ${jobs.length ? "jobs" : "data"}, so company numbers can't be sent to them.`);
+        if (!view.job || !who.scope_values.includes(view.job)) {
+          const theirs = who.scope_values.map((c) => jobs.find((j) => j.code === c)?.name ?? c).join(", ");
+          throw new ActionError(`${first} only sees ${theirs}. Pick that job in the filter first, then send.`);
+        }
+      }
+      const range = layout.filters.date ? resolveRange(asOfMonth(snap.published_at, ctx.tenant.timezone), view.range ?? "12m", view.from, view.to, view.cmp) : null;
+      const label = pinViewLabel(view, (c) => jobs.find((j) => j.code === c)?.name);
+      /* the rows behind the chart, as a CSV, for people allowed to export */
+      let csv: { rows: number; text: string } | null = null;
+      if (wantRows && ctx.can("dashboard.export") && ctx.policy.exportRoles.includes(ctx.role)) {
+        const dated = isDated(snap.datasets, block.dataset);
+        const rows = visibleRows(snap.datasets, block.dataset, ctx.scope, { eq: { job: view.job }, range: dated ? range?.current : null }).slice(0, 5000);
+        const cols = rows.length ? Object.keys(rows[0]) : [];
+        csv = { rows: rows.length, text: [csvLine(cols), ...rows.map((r) => csvLine(cols.map((c) => r[c])))].join("\r\n") };
+      }
+      const picture = /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(png) && png.length < 1_400_000 ? png.slice("data:image/png;base64,".length) : null;
+      const q = new URLSearchParams();
+      const pageOf = layout.pages.find((p) => p.rows.flat().some((b) => blockId(b) === id));
+      if (pageOf) q.set("page", pageOf.slug);
+      for (const k of ["job", "range", "from", "to", "cmp"] as const) if (view[k]) q.set(k, String(view[k]));
+      if (view.as) q.set("as", `${id}~${view.as}`);
+      const link = `/dashboards/${slug}?${q.toString()}`;
+      const nid = await notifyUser(db, who.user_id, {
+        key: `snap:${randomUUID()}`,
+        title: `${ctx.user.name} sent you “${block.title}”`,
+        body: [note ? `“${note}”` : null, label || "Full view", csv ? `${csv.rows} rows attached` : null].filter(Boolean).join(" · "),
+        link,
+      });
+      let how = "on their bell";
+      if (nid && !ctx.tenant.isDemo && emailConfigured()) {
+        const b = await (await import("@numarket/db/repo/admin")).getBranding(db);
+        const e = snapshotEmail({ name: b?.display_name ?? ctx.tenant.name, color: b?.primary_color ?? "#22577A", url: `https://${meta.host}` }, { from: ctx.user.name, title: block.title, note, view: label, link: `https://${meta.host}${link}`, picture: !!picture, rows: csv?.rows ?? null });
+        const name = block.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "chart";
+        const attachments = [...(picture ? [{ filename: `${name}.png`, content: picture }] : []), ...(csv ? [{ filename: `${name}.csv`, content: Buffer.from(csv.text, "utf8").toString("base64") }] : [])];
+        const status = await sendEmail({ to: who.email, ...e, attachments });
+        await setEmailStatus(db, [nid], status);
+        if (status === "sent") how = "by email and on their bell";
+      }
+      await audit(db, { tenantId: ctx.tenant.id, actorUserId: ctx.user.id, actorKind: actorKind(ctx.tenant.isDemo), action: "snapshot.send", target: block.title.slice(0, 120), detail: { to: who.user_id, view: label, rows: csv?.rows ?? 0, picture: !!picture }, ip: meta.ip });
+      const att = [picture ? "the picture" : null, csv ? `${csv.rows} rows` : null].filter(Boolean).join(" and ");
+      return { ok: true, message: `Sent to ${first} ${how}${att ? `, with ${att}` : ""}.${ctx.tenant.isDemo ? " (The demo never sends email.)" : ""}` };
     }, { userId: ctx.user.id });
   });
 }

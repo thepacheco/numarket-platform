@@ -5,7 +5,7 @@ import type { TenantContext } from "@numarket/auth";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import type { ActionResult } from "./ActionForm";
 import AutoSubmitSelect from "./AutoSubmitSelect";
-import ChartTools from "./ChartTools";
+import ChartTools, { type SendCfg } from "./ChartTools";
 import Icon from "./Icon";
 import MatrixTable, { type MatrixLine } from "./MatrixTable";
 import PinButton from "./PinButton";
@@ -13,6 +13,8 @@ import { rowMatch, rowsHref } from "@/lib/drill";
 import { pinViewLabel, pinViewQuery, type PinView } from "@/lib/pinView";
 
 export type Pins = { pinned: Set<string>; action: (p: ActionResult | null, f: FormData) => Promise<ActionResult> };
+/* sending a chart: the dashboard, who may receive this view, and whether rows can go along */
+export type Send = Omit<SendCfg, "block" | "view" | "viewLabel">;
 const pinnable = (b: Block) => ["kpi", "trend", "columns", "bar", "stacked"].includes(b.type);
 
 /* A dashboard: page tabs, a filter bar (date range, job), and rows of
@@ -63,7 +65,7 @@ export function stateQuery(s: DashState, override: Record<string, string | undef
   return q.toString();
 }
 
-export function DashboardView({ base, layout, datasets, ctx, state, defs, updated, pins, before }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string; pins?: Pins; before?: React.ReactNode }) {
+export function DashboardView({ base, layout, datasets, ctx, state, defs, updated, pins, send, before }: { base: string; layout: DashboardLayout; datasets: Datasets; ctx: TenantContext; state: DashState; defs: Defs; updated: string; pins?: Pins; send?: Send; before?: React.ReactNode }) {
   const c: BlockContext = {
     datasets,
     scope: ctx.scope,
@@ -92,7 +94,7 @@ export function DashboardView({ base, layout, datasets, ctx, state, defs, update
       )}
       <FilterBar base={base} state={state} ctx={ctx} />
       {before}
-      <Rows rows={state.page.rows} c={c} pins={pins} drill={{ base, state }} />
+      <Rows rows={state.page.rows} c={c} pins={pins} drill={{ base, state }} send={send} />
     </>
   );
 }
@@ -146,7 +148,7 @@ function pinView(state: DashState, mode?: ViewMode) {
   return query ? { query, label: pinViewLabel(v, (code) => state.jobs.find((j) => j.v === code)?.l) } : undefined;
 }
 
-export function Rows({ rows, c, pins, drill }: { rows: Page["rows"]; c: BlockContext; pins?: Pins; drill?: { base: string; state: DashState } }) {
+export function Rows({ rows, c, pins, drill, send }: { rows: Page["rows"]; c: BlockContext; pins?: Pins; drill?: { base: string; state: DashState }; send?: Send }) {
   return (
     <div className="dash">
       {rows.map((row, i) => {
@@ -179,8 +181,15 @@ export function Rows({ rows, c, pins, drill }: { rows: Page["rows"]; c: BlockCon
                       </Link>
                     )}
                   </div>
-                  <ChartTools title={b.title} />
-                  <PinButton id={id} pinned={pins.pinned.has(id)} action={pins.action} view={drill ? pinView(drill.state, mode !== modes[0] ? mode : undefined) : undefined} />
+                  {(() => {
+                    const pv = drill ? pinView(drill.state, mode !== modes[0] ? mode : undefined) : undefined;
+                    return (
+                      <>
+                        <ChartTools title={b.title} send={send ? { ...send, block: id, view: pv?.query ?? "", viewLabel: pv?.label ?? "" } : undefined} />
+                        <PinButton id={id} pinned={pins.pinned.has(id)} action={pins.action} view={pv} />
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -287,8 +296,4 @@ function FilterBar({ base, state, ctx }: { base: string; state: DashState; ctx: 
   );
 }
 
-/** The month the latest snapshot describes, like "2026-10". */
-export function asOfMonth(publishedAt: Date | string | undefined, tz: string) {
-  const d = publishedAt ? new Date(publishedAt) : new Date();
-  return d.toLocaleDateString("en-CA", { timeZone: tz, year: "numeric", month: "2-digit" }).slice(0, 7);
-}
+export { asOfMonth } from "@/lib/dates";

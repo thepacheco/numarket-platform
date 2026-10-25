@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { DashboardLayout } from "@numarket/blocks";
+import { can, isRole } from "@numarket/auth";
 import { withTenant } from "@numarket/db";
+import { listMembers } from "@numarket/db/repo/admin";
 import { vocabFor } from "@numarket/db/demo/vocab";
 import { getDashboard, getHomeLayout, listDashboards } from "@numarket/db/repo/workspace";
 import AskBox from "@/components/AskBox";
@@ -15,7 +17,7 @@ import { requireTenant } from "@/lib/guard";
 import { catalog, cleanLayout, defaultLayout } from "@/lib/home";
 import { insightsFor } from "@/lib/insights";
 import { pinBase } from "@/lib/pinView";
-import { askQuestion, pinToHome } from "../../../actions";
+import { askQuestion, pinToHome, sendSnapshot } from "../../../actions";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
@@ -23,7 +25,11 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   const ctx = await requireTenant("dashboard.view");
   const v = vocabFor(ctx.tenant.industry);
   const { slug } = await params;
-  const { dash, dashboards, saved } = await withTenant(ctx.tenant.id, async (db) => ({ dash: await getDashboard(db, slug), dashboards: await listDashboards(db), saved: await getHomeLayout(db, ctx.user.id) }), { userId: ctx.user.id });
+  const { dash, dashboards, saved, members } = await withTenant(
+    ctx.tenant.id,
+    async (db) => ({ dash: await getDashboard(db, slug), dashboards: await listDashboards(db), saved: await getHomeLayout(db, ctx.user.id), members: await listMembers(db) }),
+    { userId: ctx.user.id },
+  );
   if (!dash) notFound();
   const layout = dash.layout as DashboardLayout;
   if (ctx.scope && layout.wholeCompany) notFound();
@@ -39,6 +45,11 @@ export default async function DashboardPage({ params, searchParams }: { params: 
   const home = saved ? cleanLayout(saved, ctx, cat) : defaultLayout(ctx, cat);
   const pinned = new Set([...home.kpis, ...home.charts].map(pinBase));
   const kind = layout.wholeCompany ? "financials" : "projects";
+  /* who can receive this view: people whose role shows dashboards and whose data scope covers it */
+  const people = members
+    .filter((m) => m.status === "active" && m.user_id !== ctx.user.id && isRole(m.role) && can(m.role, "dashboard.view"))
+    .filter((m) => !m.scope_values?.length || (!layout.wholeCompany && !!state.job && m.scope_values.includes(state.job)))
+    .map((m) => ({ id: m.user_id, label: `${m.name}${m.title ? `, ${m.title}` : ""}` }));
   const insights = ws.snapshot ? insightsFor(kind, datasets, ctx.scope, state.range, v, state.job) : [];
 
   return (
@@ -91,6 +102,7 @@ export default async function DashboardPage({ params, searchParams }: { params: 
           defs={ws.defs}
           updated={updated}
           pins={{ pinned, action: pinToHome }}
+          send={{ slug, people, rows: canExport, action: sendSnapshot }}
           before={
             insights.length > 0 ? (
               <section className="insights" aria-label="What changed">
